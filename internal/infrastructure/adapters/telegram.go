@@ -21,6 +21,24 @@ func NewBot(token string) (*Bot, error) {
 	}, nil
 }
 
+func (b *Bot) SetCommands() error {
+	commands := []tg.BotCommand{
+		{
+			Command:     "start",
+			Description: "Начало работы",
+		},
+		{
+			Command:     "help",
+			Description: "Список доступных команд",
+		},
+	}
+
+	cfg := tg.NewSetMyCommands(commands...)
+	_, err := b.api.Request(cfg)
+
+	return err
+}
+
 func (b *Bot) SendMessage(chatID int64, text string) error {
 	msg := tg.NewMessage(chatID, text)
 	_, err := b.api.Send(msg)

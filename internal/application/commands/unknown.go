@@ -1,10 +1,14 @@
-package command
+package commands
 
 import "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain"
 
 type UnknownCommand struct{}
 
 var _ domain.Command = (*UnknownCommand)(nil)
+
+func NewUnknownCommand() domain.Command {
+	return &UnknownCommand{}
+}
 
 func (c *UnknownCommand) Name() string {
 	return "unknown"
