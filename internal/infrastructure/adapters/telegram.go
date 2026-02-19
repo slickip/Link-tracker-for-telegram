@@ -20,3 +20,19 @@ func NewBot(token string) (*Bot, error) {
 		api: api,
 	}, nil
 }
+
+func (b *Bot) SendMessage(chatID int64, text string) error {
+	msg := tg.NewMessage(chatID, text)
+	_, err := b.api.Send(msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *Bot) ListenUpdates() tg.UpdatesChannel {
+	u := tg.NewUpdate(0)
+	u.Timeout = 60
+
+	return b.api.GetUpdatesChan(u)
+}
