@@ -1,4 +1,4 @@
-package application
+package command
 
 import "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain"
 
