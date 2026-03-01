@@ -5,8 +5,6 @@ import (
 	"os"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/application/commands"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/application/dispatch"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/adapters"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/config"
@@ -27,17 +25,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	startCmd := commands.NewStartCommand()
-	helpCmd := commands.NewHelpCommand()
-	unknownCmd := commands.NewUnknownCommand()
-
-	dispatcher := dispatch.NewDispatcher(
-		[]domain.Command{
-			startCmd,
-			helpCmd,
-		},
-		unknownCmd,
-	)
+	dispatcher := commands.NewDefaultDispatcher()
 
 	log.Info("bot started successfully")
 
