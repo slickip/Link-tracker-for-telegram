@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/application/commands"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
 )
 
 func TestStartCommand_Positive(t *testing.T) {
@@ -14,11 +15,11 @@ func TestStartCommand_Positive(t *testing.T) {
 	response, err := cmd.Execute(123)
 
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("%v: %v", pkg.ErrUnexpectedError, err)
 	}
 
 	if response == "" {
-		t.Fatal("expected non-empty response for /start")
+		t.Fatal(pkg.ErrEmptyStartResponse)
 	}
 }
 
@@ -30,11 +31,11 @@ func TestHelpCommand_Positive(t *testing.T) {
 	response, err := cmd.Execute(123)
 
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("%v: %v", pkg.ErrUnexpectedError, err)
 	}
 
 	if response == "" {
-		t.Fatal("expected non-empty response for /help")
+		t.Fatal(pkg.ErrEmptyHelpResponse)
 	}
 }
 
@@ -46,10 +47,10 @@ func TestUnknownCommand_Negative(t *testing.T) {
 	response, err := cmd.Execute(123)
 
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("%v: %v", pkg.ErrUnexpectedError, err)
 	}
 
 	if response == "" {
-		t.Fatal("expected error message for unknown command")
+		t.Fatal(pkg.ErrEmptyUnknownResponse)
 	}
 }
