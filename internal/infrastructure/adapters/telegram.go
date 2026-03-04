@@ -25,19 +25,13 @@ func NewBot(token string) (*Bot, error) {
 
 func (b *Bot) SetCommands() error {
 	commands := []tg.BotCommand{
-		{
-			Command:     "start",
-			Description: "Начало работы",
-		},
-		{
-			Command:     "help",
-			Description: "Список доступных команд",
-		},
+		{Command: "start", Description: "Start the bot"},
+		{Command: "help", Description: "Show help"},
 	}
 
 	cfg := tg.NewSetMyCommands(commands...)
-	_, err := b.api.Request(cfg)
 
+	_, err := b.api.Request(cfg)
 	return err
 }
 
