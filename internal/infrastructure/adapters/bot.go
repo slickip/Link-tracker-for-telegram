@@ -62,8 +62,11 @@ func (b *Bot) Run(
 			continue
 		}
 
-		chatID := update.Message.Chat.ID
-		text := update.Message.Text
+		msg := update.Message
+		var (
+			chatID = msg.Chat.ID
+			text   = msg.Text
+		)
 
 		log.Info("received message", "chat_id", chatID, "text", text)
 
