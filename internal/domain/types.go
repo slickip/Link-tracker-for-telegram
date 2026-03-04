@@ -6,3 +6,8 @@ type Logger interface {
 	Warn(msg string, arg ...any)
 	Error(msg string, arg ...any)
 }
+
+type Command interface {
+	Name() string
+	Execute(chatID int64) (string, error)
+}
