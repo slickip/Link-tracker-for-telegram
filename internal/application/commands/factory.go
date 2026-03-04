@@ -10,7 +10,7 @@ func NewDefaultDispatcher() *dispatch.Dispatcher {
 		[]domain.Command{
 			NewStartCommand(),
 			NewHelpCommand(),
+			NewUnknownCommand(),
 		},
-		NewUnknownCommand(),
 	)
 }

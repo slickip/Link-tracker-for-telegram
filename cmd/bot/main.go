@@ -21,8 +21,7 @@ func main() {
 	}
 
 	if err := bot.SetCommands(); err != nil {
-		log.Error("failed to set bot commands", "error", err)
-		os.Exit(1)
+		log.Warn("failed to set bot commands", "error", err)
 	}
 
 	dispatcher := commands.NewDefaultDispatcher()
