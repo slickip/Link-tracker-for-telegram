@@ -15,5 +15,5 @@ func (c *HelpCommand) Name() string {
 }
 
 func (c *HelpCommand) Execute(chatID int64) (string, error) {
-	return "Пока ничего :(", nil
+	return "/start - начало работы \n/help - посмотреть список команд", nil
 }
