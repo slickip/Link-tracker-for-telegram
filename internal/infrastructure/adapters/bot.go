@@ -62,8 +62,8 @@ func (b *Bot) Run(
 			continue
 		}
 
-		msg := update.Message
 		var (
+			msg    = update.Message
 			chatID = msg.Chat.ID
 			text   = msg.Text
 		)
