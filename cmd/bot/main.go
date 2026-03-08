@@ -5,9 +5,12 @@ import (
 	"os"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/application/commands"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/application/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/adapters"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/clients"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/config"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/repositories"
 )
 
 func main() {
@@ -23,8 +26,10 @@ func main() {
 	if err := bot.SetCommands(); err != nil {
 		log.Warn("failed to set bot commands", "error", err)
 	}
-
-	dispatcher := commands.NewDefaultDispatcher()
+	scrapperClient := clients.NewScrapperClient(cfg.ScrapperURL)
+	trackRepo := repositories.NewInMemoryTrackSessionRepository()
+	trackService := services.NewTrackService(scrapperClient, trackRepo)
+	dispatcher := commands.NewDefaultDispatcher(scrapperClient, trackService)
 
 	log.Info("bot started successfully")
 
