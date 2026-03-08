@@ -70,16 +70,16 @@ func (b *Bot) Run(
 
 		log.Info("received message", "chat_id", chatID, "text", text)
 
-		cmd := dispatcher.Dispatch(text)
-
-		response, err := cmd.Execute(chatID)
+		response, err := dispatcher.Dispatch(chatID, text)
 		if err != nil {
 			log.Warn("command execution error", "error", err)
 			continue
 		}
 
-		if err := b.SendMessage(chatID, response); err != nil {
-			log.Warn("failed to send message", "error", err)
+		if response != "" {
+			if err := b.SendMessage(chatID, response); err != nil {
+				log.Warn("failed to send message", "error", err)
+			}
 		}
 	}
 }

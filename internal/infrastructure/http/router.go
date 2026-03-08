@@ -9,6 +9,7 @@ import (
 func NewRouter(
 	chatHandler *handlers.ChatHandler,
 	linkHandler *handlers.LinkHandler,
+	updatesHandler *handlers.UpdatesHandler,
 ) http.Handler {
 
 	mux := http.NewServeMux()
@@ -45,6 +46,6 @@ func NewRouter(
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	})
-
+	mux.HandleFunc("/updates", updatesHandler.Handle)
 	return mux
 }
