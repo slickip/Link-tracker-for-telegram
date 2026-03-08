@@ -31,6 +31,14 @@ func main() {
 	trackService := services.NewTrackService(scrapperClient, trackRepo)
 	dispatcher := commands.NewDefaultDispatcher(scrapperClient, trackService)
 
+	updatesHandler := http.NewUpdatesHandler(bot)
+
+	router := http.NewRouter(updatesHandler)
+
+	go func() {
+		log.Info("http server started on :8080")
+		http.ListenAndServe(":8080", router)
+	}()
 	log.Info("bot started successfully")
 
 	bot.Run(dispatcher, log)
