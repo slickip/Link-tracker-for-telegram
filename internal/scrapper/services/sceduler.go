@@ -96,12 +96,15 @@ func (s *Scheduler) processLink(link domain.Link) error {
 		return err
 	}
 
+	if link.LastUpdatedAt.IsZero() {
+		return s.repo.UpdateLastUpdated(link.URL, newUpdatedAt)
+	}
+
 	if !newUpdatedAt.After(link.LastUpdatedAt) {
 		return nil
 	}
 
-	err = s.repo.UpdateLastUpdated(link.URL, newUpdatedAt)
-	if err != nil {
+	if err = s.repo.UpdateLastUpdated(link.URL, newUpdatedAt); err != nil {
 		return err
 	}
 
