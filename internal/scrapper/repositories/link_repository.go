@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"time"
+
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
 )
@@ -17,6 +19,8 @@ type LinkRepository interface {
 	FindSubscribers(url string) ([]int64, error)
 
 	GetAllTrackedLinks() ([]domain.Link, error)
+
+	UpdateLastUpdated(url string, t time.Time) error
 }
 
 type InMemoryLinkRepository struct {
@@ -121,3 +125,18 @@ func (r *InMemoryLinkRepository) GetAllTrackedLinks() ([]domain.Link, error) {
 	return result, nil
 }
 
+func (r *InMemoryLinkRepository) UpdateLastUpdated(url string, t time.Time) error {
+
+	for chatID, links := range r.data {
+
+		if link, ok := links[url]; ok {
+
+			link.LastUpdatedAt = t
+			r.data[chatID][url] = link
+
+		}
+
+	}
+
+	return nil
+}
