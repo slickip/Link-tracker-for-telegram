@@ -24,7 +24,6 @@ func (c *ListCommand) Execute(chatID int64, text string) (string, error) {
 
 	parts := strings.Fields(text)
 
-	// На случай если пользователь не вызывал /start.
 	if err := c.client.RegisterChat(context.Background(), chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже", err
 	}
@@ -42,7 +41,6 @@ func (c *ListCommand) Execute(chatID int64, text string) (string, error) {
 		return "Список отслеживаемых ссылок пуст", nil
 	}
 
-	// Optional tag filter: /list <tag>
 	if len(parts) > 1 {
 		tag := parts[1]
 
@@ -69,9 +67,12 @@ func (c *ListCommand) Execute(chatID int64, text string) (string, error) {
 	builder.WriteString("Отслеживаемые ссылки:\n")
 
 	for _, link := range links {
-		builder.WriteString(fmt.Sprintf("- %s\n", link.URL))
+		line := fmt.Sprintf("- %s\n", link.URL)
+		if len(link.Tags) > 0 {
+			line += " (" + strings.Join(link.Tags, ", ") + ")"
+		}
+		builder.WriteString(line + "\n")
 	}
 
 	return builder.String(), nil
 }
-
