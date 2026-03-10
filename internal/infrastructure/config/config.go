@@ -3,13 +3,19 @@ package config
 import (
 	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	TelegramToken string `env:"TELEGRAM_TOKEN" required:"true"`
+	TelegramToken string
 }
 
 func MustLoad() *Config {
+	if err := godotenv.Load(); err != nil {
+		log.Println("no .env file found")
+	}
+
 	token := os.Getenv("TELEGRAM_TOKEN")
 
 	if token == "" {
