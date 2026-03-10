@@ -1,0 +1,75 @@
+package dispatch
+
+import (
+	"strings"
+
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/repositories"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/services"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain"
+)
+
+type Dispatcher struct {
+	commands     map[string]domain.Command
+	trackService *services.TrackService
+	repo         repositories.TrackSessionRepository
+}
+
+func NewDispatcher(
+	commands []domain.Command,
+	trackService *services.TrackService,
+	repo repositories.TrackSessionRepository,
+) *Dispatcher {
+
+	cmdMap := make(map[string]domain.Command)
+
+	for _, cmd := range commands {
+		cmdMap[cmd.Name()] = cmd
+	}
+
+	return &Dispatcher{
+		commands:     cmdMap,
+		trackService: trackService,
+		repo:         repo,
+	}
+}
+
+func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
+
+	session, active := d.repo.Get(chatID)
+
+	if strings.HasPrefix(text, "/cancel") {
+		d.repo.Reset(chatID)
+		return "Операция отменена", nil
+	}
+
+	if strings.HasPrefix(text, "/") {
+
+		if active {
+			d.repo.Reset(chatID)
+		}
+
+		cmdName := strings.Split(text, " ")[0]
+
+		cmd, ok := d.commands[cmdName]
+		if !ok {
+			cmd = d.commands["unknown"]
+		}
+
+		return cmd.Execute(chatID, text)
+	}
+
+	if active {
+
+		switch session.State {
+
+		case domain.StateWaitingForURL:
+			return d.trackService.HandleURL(chatID, text), nil
+
+		case domain.StateWaitingForTags:
+			return d.trackService.HandleTags(chatID, text)
+		}
+	}
+
+	return "Неизвестная команда. Используй /help", nil
+}
+

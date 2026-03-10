@@ -2,15 +2,18 @@ package main
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/application/commands"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/application/services"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/adapters"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/clients"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/commands"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/config"
+	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/http"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/http/handlers"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/repositories"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/bot/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/domain/logger"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/adapters"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/clients"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/config"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/internal/infrastructure/repositories"
 )
 
 func main() {
@@ -28,17 +31,30 @@ func main() {
 	}
 	scrapperClient := clients.NewScrapperClient(cfg.ScrapperURL)
 	trackRepo := repositories.NewInMemoryTrackSessionRepository()
-	trackService := services.NewTrackService(scrapperClient, trackRepo)
-	dispatcher := commands.NewDefaultDispatcher(scrapperClient, trackService)
 
-	updatesHandler := http.NewUpdatesHandler(bot)
+	trackService := services.NewTrackService(
+		scrapperClient,
+		trackRepo,
+	)
 
-	router := http.NewRouter(updatesHandler)
+	dispatcher := commands.NewDefaultDispatcher(
+		scrapperClient,
+		trackService,
+		trackRepo,
+	)
+
+	updatesHandler := handlers.NewUpdatesHandler(bot)
+	router := httpserver.NewBotRouter(updatesHandler)
 
 	go func() {
-		log.Info("http server started on :8080")
-		http.ListenAndServe(":8080", router)
+		addr := ":8080"
+		log.Info("bot HTTP server starting", "addr", addr)
+
+		if err := http.ListenAndServe(addr, router); err != nil {
+			log.Error("bot HTTP server failed", "error", err)
+		}
 	}()
+
 	log.Info("bot started successfully")
 
 	bot.Run(dispatcher, log)
