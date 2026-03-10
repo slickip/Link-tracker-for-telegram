@@ -28,7 +28,7 @@ type Subscription struct {
 type ParsedLink struct {
 	RawURL string
 
-	Source string
+	Source LinkSource
 
 	GithubOwner string
 	GithubRepo  string

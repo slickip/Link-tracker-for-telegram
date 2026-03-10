@@ -9,5 +9,5 @@ type Logger interface {
 
 type Command interface {
 	Name() string
-	Execute(chatID int64) (string, error)
+	Execute(chatID int64, text string) (string, error)
 }
