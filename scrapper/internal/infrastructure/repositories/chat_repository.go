@@ -32,4 +32,3 @@ func (r *InMemoryChatRepository) Exists(chatID int64) bool {
 	_, ok := r.chats[chatID]
 	return ok
 }
-
