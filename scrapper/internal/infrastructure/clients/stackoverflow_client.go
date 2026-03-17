@@ -38,12 +38,14 @@ func (c *StackOverflowClient) GetQuestionUpdatedAt(
 	if err != nil {
 		return time.Time{}, err
 	}
-		resp, err := c.client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return time.Time{}, err
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return time.Time{}, fmt.Errorf("stackoverflow status %d", resp.StatusCode)
@@ -61,4 +63,3 @@ func (c *StackOverflowClient) GetQuestionUpdatedAt(
 
 	return time.Unix(result.Items[0].LastActivityDate, 0), nil
 }
-

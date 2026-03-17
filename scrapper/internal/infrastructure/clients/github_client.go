@@ -45,7 +45,9 @@ func (c *GitHubClient) GetRepoUpdatedAt(
 		return time.Time{}, err
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return time.Time{}, fmt.Errorf("github status %d", resp.StatusCode)
