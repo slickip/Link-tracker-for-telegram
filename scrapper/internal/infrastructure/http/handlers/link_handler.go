@@ -82,5 +82,8 @@ func (h *LinkHandler) ListLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(links)
+	if err := json.NewEncoder(w).Encode(links); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
