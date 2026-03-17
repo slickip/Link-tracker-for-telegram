@@ -15,7 +15,11 @@ func (s *ChatService) RegisterChat(chatID int64) error {
 }
 
 func (s *ChatService) DeleteChat(chatID int64) error {
-	return s.repo.Remove(chatID)
+	err := s.repo.Remove(chatID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *ChatService) Exists(chatID int64) bool {
