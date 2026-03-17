@@ -1,5 +1,7 @@
 package repositories
 
+import "fmt"
+
 type ChatRepository interface {
 	Add(chatID int64) error
 
@@ -24,6 +26,11 @@ func (r *InMemoryChatRepository) Add(chatID int64) error {
 }
 
 func (r *InMemoryChatRepository) Remove(chatID int64) error {
+
+	if _, ok := r.chats[chatID]; !ok {
+		return fmt.Errorf("chat not found")
+	}
+
 	delete(r.chats, chatID)
 	return nil
 }
