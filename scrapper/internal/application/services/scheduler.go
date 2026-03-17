@@ -33,7 +33,7 @@ func (s *Scheduler) Start() {
 	}
 
 	_, err = scheduler.NewJob(
-		gocron.DurationJob(1*time.Minute),
+		gocron.DurationJob(30*time.Second),
 		gocron.NewTask(s.CheckLinks),
 	)
 
@@ -49,14 +49,14 @@ func (s *Scheduler) Start() {
 
 func (s *Scheduler) CheckLinks() {
 
-	s.log.Debug("checking links")
+	s.log.Info("checking links")
 
 	links, err := s.repo.GetAllTrackedLinks()
 	if err != nil {
 		s.log.Error("failed to get tracked links", "error", err)
 		return
 	}
-
+	s.log.Info("links found", "count", len(links))
 	for _, link := range links {
 
 		err := s.processLink(link)

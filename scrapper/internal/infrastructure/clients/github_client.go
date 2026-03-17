@@ -38,6 +38,7 @@ func (c *GitHubClient) GetRepoUpdatedAt(
 	if err != nil {
 		return time.Time{}, err
 	}
+	req.Header.Set("User-Agent", "link-tracker")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -58,4 +59,3 @@ func (c *GitHubClient) GetRepoUpdatedAt(
 
 	return result.UpdatedAt, nil
 }
-
