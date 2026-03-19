@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package scrapper;
+
+option go_package = "./pkg/api/scrapper;scrapperpb";
+
+message Empty {}
+
+message ChatIdRequest {
+  int64 chat_id = 1;
+}
+
+message AddLinkRequest {
+  int64 chat_id = 1;
+  string url = 2;
+  repeated string tags = 3;
+}
+
+message RemoveLinkRequest {
+  int64 chat_id = 1;
+  string url = 2;
+}
+
+message Link {
+  string url = 1;
+  repeated string tags = 2;
+}
+
+message ListLinksRequest {
+  int64 chat_id = 1;
+}
+
+message ListLinksResponse {
+  repeated Link links = 1;
+}
+
+service ScrapperService {
+  rpc RegisterChat(ChatIdRequest) returns (Empty);
+  rpc DeleteChat(ChatIdRequest) returns (Empty);
+  rpc AddLink(AddLinkRequest) returns (Empty);
+  rpc RemoveLink(RemoveLinkRequest) returns (Empty);
+  rpc ListLinks(ListLinksRequest) returns (ListLinksResponse);
+}
