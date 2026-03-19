@@ -34,7 +34,6 @@ func NewInMemoryLinkRepository() *InMemoryLinkRepository {
 }
 
 func (r *InMemoryLinkRepository) Add(chatID int64, link domain.Link) error {
-
 	if r.data[chatID] == nil {
 		r.data[chatID] = make(map[string]domain.Link)
 	}

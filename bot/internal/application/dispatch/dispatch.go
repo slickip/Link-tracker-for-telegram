@@ -37,9 +37,24 @@ func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
 
 	session, active := d.repo.Get(chatID)
 
-	if strings.HasPrefix(text, "/cancel") {
-		d.repo.Reset(chatID)
-		return "Операция отменена", nil
+	if strings.HasPrefix(text, "/") {
+		if active && !strings.HasPrefix(text, "/cancel") {
+			return "Сначала завершите текущую операцию или используйте /cancel", nil
+		}
+
+		if strings.HasPrefix(text, "/cancel") {
+			d.repo.Reset(chatID)
+			return "Операция отменена", nil
+		}
+
+		cmdName := strings.Split(text, " ")[0]
+
+		cmd, ok := d.commands[cmdName]
+		if !ok {
+			cmd = d.commands["unknown"]
+		}
+
+		return cmd.Execute(chatID, text)
 	}
 
 	if strings.HasPrefix(text, "/") {
