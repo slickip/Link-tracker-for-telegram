@@ -25,6 +25,10 @@ func ParseLink(raw string) (ParsedLink, error) {
 		return ParsedLink{}, err
 	}
 
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return ParsedLink{}, fmt.Errorf("unsupported link")
+	}
+
 	host := u.Host
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 
