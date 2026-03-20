@@ -21,7 +21,6 @@ func (c *UntrackCommand) Name() string {
 }
 
 func (c *UntrackCommand) Execute(chatID int64, text string) (string, error) {
-
 	parts := strings.Fields(text)
 
 	if len(parts) < 2 {

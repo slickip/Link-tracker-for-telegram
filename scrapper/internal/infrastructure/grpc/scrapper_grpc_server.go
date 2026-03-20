@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	scrapperpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/scrapper"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -114,8 +114,8 @@ func (s *ScrapperGRPCServer) ListLinks(
 	pbLinks := make([]*scrapperpb.Link, 0, len(links))
 	for _, l := range links {
 		pbLinks = append(pbLinks, &scrapperpb.Link{
-			Url:   l.URL,
-			Tags:  l.Tags,
+			Url:  l.URL,
+			Tags: l.Tags,
 		})
 	}
 
@@ -135,9 +135,6 @@ func statusFromErr(err error) error {
 	case errors.Is(err, pkg.ErrInvalidAPIResponse):
 		return status.Error(codes.Internal, err.Error())
 	}
-
-	// Некоторые ошибки в репозитории сформированы через fmt.Errorf, а не через pkg.* ошибки.
-	// Поэтому дополнительно мапим по тексту.
 	if err != nil && err.Error() == "chat not found" {
 		return status.Error(codes.NotFound, err.Error())
 	}
@@ -147,4 +144,3 @@ func statusFromErr(err error) error {
 	}
 	return status.Error(codes.Internal, err.Error())
 }
-

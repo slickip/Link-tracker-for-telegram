@@ -38,7 +38,6 @@ type addLinkRequest struct {
 }
 
 func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) error {
-
 	url := fmt.Sprintf("%s/tg-chat/%d", c.baseURL, chatID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
@@ -63,7 +62,6 @@ func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) err
 }
 
 func (c *HTTPscrapperClient) DeleteChat(ctx context.Context, chatID int64) error {
-
 	url := fmt.Sprintf("%s/tg-chat/%d", c.baseURL, chatID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
@@ -88,7 +86,6 @@ func (c *HTTPscrapperClient) DeleteChat(ctx context.Context, chatID int64) error
 }
 
 func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr string, tags []string) error {
-
 	body := addLinkRequest{
 		ChatID: chatID,
 		URL:    urlStr,
@@ -130,7 +127,6 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 }
 
 func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlStr string) error {
-
 	body := addLinkRequest{
 		ChatID: chatID,
 		URL:    urlStr,
@@ -170,7 +166,6 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 }
 
 func (c *HTTPscrapperClient) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
-
 	url := fmt.Sprintf("%s/links?chatId=%d", c.baseURL, chatID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

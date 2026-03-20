@@ -173,6 +173,4 @@ func TestStackOverflowClient_ErrorOnNon2xx(t *testing.T) {
 	})
 }
 
-// Ensure compilation uses time import (go might remove unused import if build tags differ).
 var _ = time.RFC3339
-

@@ -19,7 +19,6 @@ func NewLinkService(linkRepo repositories.LinkRepository, chatRepo repositories.
 }
 
 func (s *LinkService) AddLink(chatID int64, link domain.Link) error {
-
 	if !s.chatRepo.Exists(chatID) {
 		return pkg.ErrChatNotFound
 	}
@@ -28,7 +27,6 @@ func (s *LinkService) AddLink(chatID int64, link domain.Link) error {
 }
 
 func (s *LinkService) RemoveLink(chatID int64, url string) error {
-
 	if !s.chatRepo.Exists(chatID) {
 		return pkg.ErrChatNotFound
 	}
@@ -37,7 +35,6 @@ func (s *LinkService) RemoveLink(chatID int64, url string) error {
 }
 
 func (s *LinkService) ListLinks(chatID int64) ([]domain.Link, error) {
-
 	if !s.chatRepo.Exists(chatID) {
 		return nil, pkg.ErrChatNotFound
 	}

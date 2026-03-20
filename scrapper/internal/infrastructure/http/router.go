@@ -6,7 +6,6 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http/handlers"
 )
 
-// NewRouter configures HTTP routes for the Scrapper service.
 func NewRouter(
 	chatHandler *handlers.ChatHandler,
 	linkHandler *handlers.LinkHandler,

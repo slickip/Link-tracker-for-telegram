@@ -26,7 +26,6 @@ func NewTrackService(
 }
 
 func (s *TrackService) Start(chatID int64) string {
-
 	if err := s.client.RegisterChat(context.Background(), chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже"
 	}
@@ -39,7 +38,6 @@ func (s *TrackService) Start(chatID int64) string {
 }
 
 func (s *TrackService) HandleURL(chatID int64, url string) string {
-
 	session, ok := s.repo.Get(chatID)
 	if !ok {
 		return ""
@@ -58,7 +56,6 @@ func (s *TrackService) HandleURL(chatID int64, url string) string {
 }
 
 func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
-
 	session, ok := s.repo.Get(chatID)
 	if !ok {
 		return "", nil
@@ -77,7 +74,7 @@ func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
 		}
 	}
 
-	// На случай если пользователь не вызывал /start.
+	//yа случай если пользователь не вызывал /start
 	if err := s.client.RegisterChat(context.Background(), chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже", err
 	}
@@ -106,7 +103,6 @@ func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
 }
 
 func (s *TrackService) Cancel(chatID int64) string {
-
 	s.repo.Reset(chatID)
 
 	return "Отслеживание отменено"

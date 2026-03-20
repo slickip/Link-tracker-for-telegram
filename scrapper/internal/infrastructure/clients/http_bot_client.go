@@ -27,7 +27,6 @@ func NewHTTPBotClient(baseURL string) *HTTPBotClient {
 }
 
 func (c *HTTPBotClient) SendUpdate(ctx context.Context, update domain.LinkUpdate) error {
-
 	body, err := json.Marshal(update)
 	if err != nil {
 		return err

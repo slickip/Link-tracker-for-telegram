@@ -41,7 +41,6 @@ func (m *mockScrapperClient) ListLinks(ctx context.Context, chatID int64) ([]dom
 }
 
 func setupDispatcher() *dispatch.Dispatcher {
-
 	repo := repositories.NewInMemoryTrackSessionRepository()
 
 	mockClient := &mockScrapperClient{}

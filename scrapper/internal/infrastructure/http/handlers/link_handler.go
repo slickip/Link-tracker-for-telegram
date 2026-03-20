@@ -24,7 +24,6 @@ func NewLinkHandler(service *services.LinkService) *LinkHandler {
 }
 
 func (h *LinkHandler) AddLink(w http.ResponseWriter, r *http.Request) {
-
 	var req AddLinkRequest
 
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -48,7 +47,6 @@ func (h *LinkHandler) AddLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LinkHandler) RemoveLink(w http.ResponseWriter, r *http.Request) {
-
 	var req AddLinkRequest
 
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -67,7 +65,6 @@ func (h *LinkHandler) RemoveLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LinkHandler) ListLinks(w http.ResponseWriter, r *http.Request) {
-
 	chatIDStr := r.URL.Query().Get("chatId")
 
 	chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
