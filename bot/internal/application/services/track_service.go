@@ -90,6 +90,13 @@ func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
 	)
 
 	if err != nil {
+		if strings.Contains(err.Error(), "AlreadyExists") ||
+			strings.Contains(err.Error(), "already tracked") {
+
+			s.repo.Reset(chatID)
+			return "Ссылка уже отслеживается", nil
+		}
+
 		return "Не получилось добавить ссылку", err
 	}
 
