@@ -10,6 +10,9 @@ import (
 type Config struct {
 	TelegramToken string
 	ScrapperURL   string
+	BotGRPCAddr   string
+
+	ScrapperGRPCAddr string
 }
 
 func MustLoad() *Config {
@@ -28,9 +31,21 @@ func MustLoad() *Config {
 		log.Fatal("SCRAPPER_URL is not set")
 	}
 
+	botGRPCAddr := os.Getenv("BOT_GRPC_ADDR")
+	if botGRPCAddr == "" {
+		botGRPCAddr = "localhost:8082"
+	}
+
+	scrapperGRPCAddr := os.Getenv("SCRAPPER_GRPC_ADDR")
+	if scrapperGRPCAddr == "" {
+		scrapperGRPCAddr = "localhost:8083"
+	}
+
 	return &Config{
 		TelegramToken: token,
 		ScrapperURL:   scrapperURL,
+		BotGRPCAddr:   botGRPCAddr,
+		ScrapperGRPCAddr: scrapperGRPCAddr,
 	}
 }
 
