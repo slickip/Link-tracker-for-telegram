@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 
@@ -10,10 +12,14 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/adapters"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/config"
+	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/repositories"
+	botpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/bot"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -29,7 +35,16 @@ func main() {
 	if err := bot.SetCommands(); err != nil {
 		log.Warn("failed to set bot commands", "error", err)
 	}
-	scrapperClient := clients.NewScrapperClient(cfg.ScrapperURL)
+
+	httpScrapperClient := clients.NewScrapperClient(cfg.ScrapperURL)
+	var scrapperClient clients.ScrapperClient = httpScrapperClient
+	grpcScrapperClient, err := clients.NewGRPCScrapperClient(cfg.ScrapperGRPCAddr)
+	if err != nil {
+		log.Warn("failed to init scrapper grpc client, fallback to http only", "error", err)
+	} else {
+		scrapperClient = clients.NewFallbackScrapperClient(httpScrapperClient, grpcScrapperClient, log)
+	}
+
 	trackRepo := repositories.NewInMemoryTrackSessionRepository()
 
 	trackService := services.NewTrackService(
@@ -46,16 +61,39 @@ func main() {
 	updatesHandler := handlers.NewUpdatesHandler(bot)
 	router := httpserver.NewBotRouter(updatesHandler)
 
-	go func() {
+	g, _ := errgroup.WithContext(context.Background())
+
+	g.Go(func() error {
 		addr := ":8080"
 		log.Info("bot HTTP server starting", "addr", addr)
+		return http.ListenAndServe(addr, router)
+	})
 
-		if err := http.ListenAndServe(addr, router); err != nil {
-			log.Error("bot HTTP server failed", "error", err)
+	g.Go(func() error {
+		lis, err := net.Listen("tcp", cfg.BotGRPCAddr)
+		if err != nil {
+			return err
 		}
-	}()
+
+		grpcSrv := grpc.NewServer()
+		botpb.RegisterBotServiceServer(
+			grpcSrv,
+			grpcserver.NewBotGRPCServer(bot, log),
+		)
+
+		log.Info("bot gRPC server starting", "addr", cfg.BotGRPCAddr)
+
+		return grpcSrv.Serve(lis)
+	})
 
 	log.Info("bot started successfully")
 
-	bot.Run(dispatcher, log)
+	g.Go(func() error {
+		bot.Run(dispatcher, log)
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		log.Error("service failed", "error", err)
+	}
 }
