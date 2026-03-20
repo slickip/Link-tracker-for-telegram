@@ -16,7 +16,7 @@ type GRPCBotClient struct {
 }
 
 func NewGRPCBotClient(addr string) (*GRPCBotClient, error) {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

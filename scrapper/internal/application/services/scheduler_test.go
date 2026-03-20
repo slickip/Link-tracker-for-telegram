@@ -95,10 +95,13 @@ func TestScheduler_ProcessLink_SendsUpdateOnlyToSubscribers(t *testing.T) {
 	defer stackSrv.Close()
 
 	repo := repositories.NewInMemoryLinkRepository()
-	// chatID=1 is subscribed to linkURL
-	repo.Add(1, domain.Link{URL: linkURL, Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt})
-	// chatID=2 is subscribed to a different URL, so it must NOT be included in update TgChatIDs
-	repo.Add(2, domain.Link{URL: "https://github.com/other/repo2", Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt})
+	if err := repo.Add(1, domain.Link{URL: linkURL, Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt}); err != nil {
+		t.Fatalf("failed to add link: %v", err)
+	}
+
+	if err := repo.Add(2, domain.Link{URL: "https://github.com/other/repo2", Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt}); err != nil {
+		t.Fatalf("failed to add link: %v", err)
+	}
 
 	botClient := &mockBotClient{}
 	log := logger.New(slog.LevelInfo)
@@ -147,7 +150,9 @@ func TestScheduler_CheckLinks_DoesNotPanic_OnExternalAPIError(t *testing.T) {
 	defer stackSrv.Close()
 
 	repo := repositories.NewInMemoryLinkRepository()
-	repo.Add(1, domain.Link{URL: linkURL, Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt})
+	if err := repo.Add(1, domain.Link{URL: linkURL, Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt}); err != nil {
+		t.Fatalf("failed to add link: %v", err)
+	}
 
 	botClient := &mockBotClient{}
 	log := logger.New(slog.LevelInfo)
@@ -174,4 +179,3 @@ func TestScheduler_CheckLinks_DoesNotPanic_OnExternalAPIError(t *testing.T) {
 		t.Fatalf("expected no bot updates on external API error, got %#v", botClient.calls)
 	}
 }
-
