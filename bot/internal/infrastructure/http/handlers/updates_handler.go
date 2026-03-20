@@ -23,7 +23,6 @@ func NewUpdatesHandler(bot MessageSender) *UpdatesHandler {
 
 func (h *UpdatesHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	var update dto.LinkUpdate
-
 	err := json.NewDecoder(r.Body).Decode(&update)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)

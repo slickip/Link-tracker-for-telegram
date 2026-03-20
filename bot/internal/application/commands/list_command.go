@@ -21,7 +21,6 @@ func (c *ListCommand) Name() string {
 }
 
 func (c *ListCommand) Execute(chatID int64, text string) (string, error) {
-
 	parts := strings.Fields(text)
 
 	if err := c.client.RegisterChat(context.Background(), chatID); err != nil {

@@ -19,7 +19,6 @@ type ParsedLink struct {
 }
 
 func ParseLink(raw string) (ParsedLink, error) {
-
 	u, err := url.Parse(raw)
 	if err != nil {
 		return ParsedLink{}, err
@@ -60,4 +59,3 @@ func ParseLink(raw string) (ParsedLink, error) {
 
 	return ParsedLink{}, fmt.Errorf("unsupported link")
 }
-

@@ -17,7 +17,6 @@ func NewChatHandler(service *services.ChatService) *ChatHandler {
 }
 
 func (h *ChatHandler) RegisterChat(w http.ResponseWriter, r *http.Request) {
-
 	idStr := strings.TrimPrefix(r.URL.Path, "/tg-chat/")
 
 	chatID, err := strconv.ParseInt(idStr, 10, 64)
@@ -36,7 +35,6 @@ func (h *ChatHandler) RegisterChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ChatHandler) DeleteChat(w http.ResponseWriter, r *http.Request) {
-
 	idStr := strings.TrimPrefix(r.URL.Path, "/tg-chat/")
 
 	chatID, err := strconv.ParseInt(idStr, 10, 64)

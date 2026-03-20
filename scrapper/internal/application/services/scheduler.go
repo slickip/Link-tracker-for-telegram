@@ -25,7 +25,6 @@ type Scheduler struct {
 }
 
 func (s *Scheduler) Start() {
-
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		s.log.Error("scheduler init error", "error", err)
@@ -48,7 +47,6 @@ func (s *Scheduler) Start() {
 }
 
 func (s *Scheduler) CheckLinks() {
-
 	s.log.Info("checking links")
 
 	links, err := s.repo.GetAllTrackedLinks()
@@ -67,7 +65,6 @@ func (s *Scheduler) CheckLinks() {
 }
 
 func (s *Scheduler) processLink(link domain.Link) error {
-
 	parsed, err := parsers.ParseLink(link.URL)
 	if err != nil {
 		return err

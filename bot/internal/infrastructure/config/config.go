@@ -16,7 +16,6 @@ type Config struct {
 }
 
 func MustLoad() *Config {
-
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found")
 	}
@@ -42,10 +41,9 @@ func MustLoad() *Config {
 	}
 
 	return &Config{
-		TelegramToken: token,
-		ScrapperURL:   scrapperURL,
-		BotGRPCAddr:   botGRPCAddr,
+		TelegramToken:    token,
+		ScrapperURL:      scrapperURL,
+		BotGRPCAddr:      botGRPCAddr,
 		ScrapperGRPCAddr: scrapperGRPCAddr,
 	}
 }
-

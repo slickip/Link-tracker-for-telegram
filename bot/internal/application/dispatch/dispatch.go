@@ -34,7 +34,6 @@ func NewDispatcher(
 }
 
 func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
-
 	session, active := d.repo.Get(chatID)
 
 	if strings.HasPrefix(text, "/") {
