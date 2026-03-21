@@ -4,6 +4,10 @@ package bot;
 
 option go_package = "./pkg/api/bot;botpb";
 
+service BotService {
+  rpc SendUpdate(LinkUpdateRequest) returns (Empty);
+}
+
 message LinkUpdateRequest {
   string url = 1;
   string description = 2;
@@ -11,7 +15,3 @@ message LinkUpdateRequest {
 }
 
 message Empty {}
-
-service BotService {
-  rpc SendUpdate(LinkUpdateRequest) returns (Empty);
-}
