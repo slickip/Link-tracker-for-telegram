@@ -4,9 +4,7 @@ import "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker
 
 type TrackSessionRepository interface {
 	Get(chatID int64) (domain.TrackSession, bool)
-
 	Set(chatID int64, session domain.TrackSession)
-
 	Reset(chatID int64)
 }
 

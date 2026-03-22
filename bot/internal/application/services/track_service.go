@@ -74,7 +74,7 @@ func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
 		}
 	}
 
-	//yа случай если пользователь не вызывал /start
+	//на случай если пользователь не вызывал /start
 	if err := s.client.RegisterChat(context.Background(), chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже", err
 	}

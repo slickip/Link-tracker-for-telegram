@@ -8,6 +8,11 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
 )
 
+const (
+	base      = 10
+	bitSize64 = 64
+)
+
 type ChatHandler struct {
 	service *services.ChatService
 }
@@ -19,7 +24,7 @@ func NewChatHandler(service *services.ChatService) *ChatHandler {
 func (h *ChatHandler) RegisterChat(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/tg-chat/")
 
-	chatID, err := strconv.ParseInt(idStr, 10, 64)
+	chatID, err := strconv.ParseInt(idStr, base, bitSize64)
 	if err != nil {
 		http.Error(w, "invalid chat id", http.StatusBadRequest)
 		return
