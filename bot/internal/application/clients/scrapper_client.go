@@ -54,7 +54,7 @@ func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) err
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
 	}
 
@@ -78,7 +78,7 @@ func (c *HTTPscrapperClient) DeleteChat(ctx context.Context, chatID int64) error
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
 	}
 
@@ -119,7 +119,7 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
 	}
 
@@ -158,7 +158,7 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
 	}
 
@@ -182,7 +182,7 @@ func (c *HTTPscrapperClient) ListLinks(ctx context.Context, chatID int64) ([]dom
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("scrapper returned status %d", resp.StatusCode)
 	}
 

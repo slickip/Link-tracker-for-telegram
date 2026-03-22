@@ -13,6 +13,8 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/repositories"
 )
 
+const seconds = 30
+
 type Scheduler struct {
 	repo repositories.LinkRepository
 
@@ -32,7 +34,7 @@ func (s *Scheduler) Start() {
 	}
 
 	_, err = scheduler.NewJob(
-		gocron.DurationJob(30*time.Second),
+		gocron.DurationJob(seconds*time.Second),
 		gocron.NewTask(s.CheckLinks),
 	)
 

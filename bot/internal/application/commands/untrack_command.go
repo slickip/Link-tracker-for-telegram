@@ -8,6 +8,11 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
 )
 
+const (
+	minArgsForURL = 2 // /untrack <url>
+	minArgsForTag = 3 // /untrack tag <tag>
+)
+
 type UntrackCommand struct {
 	client clients.ScrapperClient
 }
@@ -21,65 +26,63 @@ func (c *UntrackCommand) Name() string {
 }
 
 func (c *UntrackCommand) Execute(chatID int64, text string) (string, error) {
-	parts := strings.Fields(text)
+	args := strings.Fields(text)
 
-	if len(parts) < 2 {
+	if len(args) < minArgsForURL {
 		return "Использование:\n/untrack <url> — удалить по ссылке\n/untrack tag <tag> — удалить все ссылки с тегом", nil
 	}
 
-	if err := c.client.RegisterChat(context.Background(), chatID); err != nil {
+	ctx := context.Background()
+
+	if err := c.client.RegisterChat(ctx, chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже", err
 	}
 
-	if parts[1] == "tag" {
-		if len(parts) < 3 {
+	commandArg := args[1]
+
+	if commandArg == "tag" {
+		if len(args) < minArgsForTag {
 			return "Использование: /untrack tag <tag>", nil
 		}
 
-		tag := parts[2]
+		tagToRemove := args[2]
 
-		links, err := c.client.ListLinks(context.Background(), chatID)
+		links, err := c.client.ListLinks(ctx, chatID)
 		if err != nil {
 			return "Не получилось получить список ссылок", err
 		}
 
-		var removed int
+		var removedCount int
 
 		for _, link := range links {
-			hasTag := false
+			hasRequestedTag := false
 
-			for _, t := range link.Tags {
-				if t == tag {
-					hasTag = true
+			for _, currentTag := range link.Tags {
+				if currentTag == tagToRemove {
+					hasRequestedTag = true
 					break
 				}
 			}
 
-			if !hasTag {
+			if !hasRequestedTag {
 				continue
 			}
 
-			if err := c.client.RemoveLink(context.Background(), chatID, link.URL); err == nil {
-				removed++
+			if err := c.client.RemoveLink(ctx, chatID, link.URL); err == nil {
+				removedCount++
 			}
 		}
 
-		if removed == 0 {
+		if removedCount == 0 {
 			return "Ссылки с указанным тегом не найдены", nil
 		}
 
-		return fmt.Sprintf("Удалено ссылок с тегом %s: %d", tag, removed), nil
+		return fmt.Sprintf("Удалено ссылок с тегом %s: %d", tagToRemove, removedCount), nil
 	}
 
-	url := parts[1]
+	urlToRemove := commandArg
 
-	err := c.client.RemoveLink(
-		context.Background(),
-		chatID,
-		url,
-	)
-
-	if err != nil {
+	if err := c.client.RemoveLink(ctx, chatID, urlToRemove); err != nil {
 		return "Не получилось удалить ссылку", err
 	}
 

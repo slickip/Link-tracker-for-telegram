@@ -23,8 +23,10 @@ import (
 )
 
 func main() {
-	cfg := config.MustLoad()
-	log := logger.New(slog.LevelInfo)
+	var (
+		cfg = config.MustLoad()
+		log = logger.New(slog.LevelInfo)
+	)
 
 	bot, err := adapters.NewBot(cfg.TelegramToken)
 	if err != nil {
@@ -36,35 +38,41 @@ func main() {
 		log.Warn("failed to set bot commands", "error", err)
 	}
 
-	httpScrapperClient := clients.NewScrapperClient(cfg.ScrapperURL)
-	var scrapperClient clients.ScrapperClient = httpScrapperClient
+	var (
+		httpScrapperClient                        = clients.NewScrapperClient(cfg.ScrapperURL)
+		scrapperClient     clients.ScrapperClient = httpScrapperClient
+	)
+
 	grpcScrapperClient, err := clients.NewGRPCScrapperClient(cfg.ScrapperGRPCAddr)
 	if err != nil {
-		log.Warn("failed to init scrapper grpc client, fallback to http only", "error", err)
+		log.Warn("gRPC unavailable, using HTTP only", "error", err)
 	} else {
+		log.Info("gRPC available, enabling fallback (HTTP → gRPC)")
 		scrapperClient = clients.NewFallbackScrapperClient(httpScrapperClient, grpcScrapperClient, log)
 	}
 
-	trackRepo := repositories.NewInMemoryTrackSessionRepository()
+	var (
+		trackRepo = repositories.NewInMemoryTrackSessionRepository()
 
-	trackService := services.NewTrackService(
-		scrapperClient,
-		trackRepo,
+		trackService = services.NewTrackService(
+			scrapperClient,
+			trackRepo,
+		)
+
+		dispatcher = commands.NewDefaultDispatcher(
+			scrapperClient,
+			trackService,
+			trackRepo,
+		)
+
+		updatesHandler = handlers.NewUpdatesHandler(bot)
+		router         = httpserver.NewBotRouter(updatesHandler)
 	)
-
-	dispatcher := commands.NewDefaultDispatcher(
-		scrapperClient,
-		trackService,
-		trackRepo,
-	)
-
-	updatesHandler := handlers.NewUpdatesHandler(bot)
-	router := httpserver.NewBotRouter(updatesHandler)
 
 	g, _ := errgroup.WithContext(context.Background())
 
 	g.Go(func() error {
-		addr := ":8080"
+		addr := cfg.BotHTTPAddr
 		log.Info("bot HTTP server starting", "addr", addr)
 		return http.ListenAndServe(addr, router)
 	})

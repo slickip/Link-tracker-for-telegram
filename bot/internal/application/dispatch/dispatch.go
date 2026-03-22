@@ -57,7 +57,6 @@ func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
 	}
 
 	if strings.HasPrefix(text, "/") {
-
 		if active {
 			d.repo.Reset(chatID)
 		}
@@ -73,7 +72,6 @@ func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
 	}
 
 	if active {
-
 		switch session.State {
 
 		case domain.StateWaitingForURL:

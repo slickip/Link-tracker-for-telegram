@@ -134,11 +134,14 @@ func statusFromErr(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, pkg.ErrInvalidAPIResponse):
 		return status.Error(codes.Internal, err.Error())
+	default:
+        return status.Error(codes.Internal, "internal server error")
+    }
 	}
+	
 	if err != nil && err.Error() == "chat not found" {
 		return status.Error(codes.NotFound, err.Error())
 	}
-
 	if err == nil {
 		return status.Error(codes.Internal, "nil error")
 	}

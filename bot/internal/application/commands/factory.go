@@ -13,17 +13,16 @@ func NewDefaultDispatcher(
 	trackService *services.TrackService,
 	repo repositories.TrackSessionRepository,
 ) *dispatch.Dispatcher {
-	return dispatch.NewDispatcher(
-		[]domain.Command{
-			NewStartCommand(client),
-			NewHelpCommand(),
-			NewTrackCommand(trackService),
-			NewUntrackCommand(client),
-			NewListCommand(client),
-			NewCancelCommand(),
-			NewUnknownCommand(),
-		},
-		trackService,
-		repo,
-	)
+
+	commands := []domain.Command{
+		NewStartCommand(client),
+		NewHelpCommand(),
+		NewTrackCommand(trackService),
+		NewUntrackCommand(client),
+		NewListCommand(client),
+		NewCancelCommand(),
+		NewUnknownCommand(),
+	}
+
+	return dispatch.NewDispatcher(commands, trackService, repo)
 }
