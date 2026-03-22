@@ -8,8 +8,6 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
 )
 
-const tagArgIndex = 1
-
 type ListCommand struct {
 	client clients.ScrapperClient
 }
