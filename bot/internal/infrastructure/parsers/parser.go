@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	base10    = 10
+	bitSize64 = 64
+)
+
 type ParsedLink struct {
 	RawURL string
 
@@ -45,7 +50,7 @@ func ParseLink(raw string) (ParsedLink, error) {
 		len(parts) >= 2 &&
 		parts[0] == "questions" {
 
-		id, err := strconv.ParseInt(parts[1], 10, 64)
+		id, err := strconv.ParseInt(parts[1], base10, bitSize64)
 		if err != nil {
 			return ParsedLink{}, err
 		}

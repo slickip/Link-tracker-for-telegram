@@ -19,14 +19,24 @@ func NewInMemoryTrackSessionRepository() *InMemoryTrackSessionRepository {
 }
 
 func (r *InMemoryTrackSessionRepository) Get(chatID int64) (domain.TrackSession, bool) {
+	if r == nil {
+		return domain.TrackSession{}, false
+	}
+
 	session, ok := r.sessions[chatID]
 	return session, ok
 }
 
 func (r *InMemoryTrackSessionRepository) Set(chatID int64, session domain.TrackSession) {
+	if r == nil {
+		return
+	}
 	r.sessions[chatID] = session
 }
 
 func (r *InMemoryTrackSessionRepository) Reset(chatID int64) {
+	if r == nil {
+		return
+	}
 	delete(r.sessions, chatID)
 }
