@@ -4,13 +4,13 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 
 	"github.com/joho/godotenv"
 
 	scrapperpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/scrapper"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/config"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
 	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http"
@@ -28,23 +28,12 @@ func main() {
 
 	chatService := services.NewChatService(chatRepo)
 	linkService := services.NewLinkService(linkRepo, chatRepo)
+	cfg := config.MustLoad()
 
-	botHTTPURL := os.Getenv("BOT_HTTP_URL")
-	if botHTTPURL == "" {
-		botHTTPURL = "http://localhost:8080"
-	}
+	botGRPCAddr := cfg.BotGRPCAddr
+	scrapperGRPCAddr := cfg.ScrapperGRPCAddr
+	httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL)
 
-	botGRPCAddr := os.Getenv("BOT_GRPC_ADDR")
-	if botGRPCAddr == "" {
-		botGRPCAddr = "localhost:8082"
-	}
-
-	scrapperGRPCAddr := os.Getenv("SCRAPPER_GRPC_ADDR")
-	if scrapperGRPCAddr == "" {
-		scrapperGRPCAddr = "localhost:8083"
-	}
-
-	httpBotClient := clients.NewHTTPBotClient(botHTTPURL)
 	var botClient clients.BotClient = httpBotClient
 	grpcBotClient, err := clients.NewGRPCBotClient(botGRPCAddr)
 	if err != nil {

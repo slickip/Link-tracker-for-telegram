@@ -67,7 +67,7 @@ func (h *LinkHandler) RemoveLink(w http.ResponseWriter, r *http.Request) {
 func (h *LinkHandler) ListLinks(w http.ResponseWriter, r *http.Request) {
 	chatIDStr := r.URL.Query().Get("chatId")
 
-	chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
+	chatID, err := strconv.ParseInt(chatIDStr, base10, bitSize64)
 	if err != nil {
 		http.Error(w, "invalid chat id", http.StatusBadRequest)
 		return
