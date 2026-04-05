@@ -75,9 +75,7 @@ func (s *Scheduler) processLink(link domain.Link) error {
 	var newUpdatedAt time.Time
 
 	switch parsed.Source {
-
 	case "github":
-
 		newUpdatedAt, err = s.githubClient.GetRepoUpdatedAt(
 			context.Background(),
 			parsed.GithubOwner,
@@ -85,11 +83,11 @@ func (s *Scheduler) processLink(link domain.Link) error {
 		)
 
 	case "stackoverflow":
-
 		newUpdatedAt, err = s.soClient.GetQuestionUpdatedAt(
 			context.Background(),
 			parsed.StackOverflowQuestionID,
 		)
+	default:
 	}
 
 	if err != nil {
