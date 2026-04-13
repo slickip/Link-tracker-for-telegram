@@ -6,7 +6,9 @@ lint:
   image: golangci/golangci-lint:latest
   stage: lint
   script:
-    - golangci-lint run
+    - go mod download
+    - go list ./...
+    - golangci-lint run --timeout=10m
 
 test:
   image: golang:1.24
