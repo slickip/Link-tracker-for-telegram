@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package bot;
+
+option go_package = "./pkg/api/bot;botpb";
+
+service BotService {
+  rpc SendUpdate(LinkUpdateRequest) returns (Empty);
+}
+
+message LinkUpdateRequest {
+  string url = 1;
+  string description = 2;
+  repeated int64 tg_chat_ids = 3;
+}
+
+message Empty {}
