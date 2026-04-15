@@ -25,6 +25,19 @@ CREATE TABLE link_tags (
     PRIMARY KEY (link_id, tag_id)
 );
 
+CREATE TABLE track_sessions (
+    chat_id BIGINT PRIMARY KEY,
+    state TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE track_sessions (
+    chat_id BIGINT PRIMARY KEY,
+    state TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT ''
+);
+
 CREATE INDEX idx_links_url ON links(url);
 CREATE INDEX idx_subscriptions_chat_id ON subscriptions(chat_id);
 CREATE INDEX idx_subscriptions_link_id ON subscriptions(link_id);
