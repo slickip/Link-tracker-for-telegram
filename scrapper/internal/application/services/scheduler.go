@@ -8,15 +8,15 @@ import (
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain/repositories"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/parsers"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/repositories"
 )
 
 const seconds = 30
 
 type Scheduler struct {
-	repo repositories.LinkRepository
+	repo repositories.TrackingRepository
 
 	githubClient *clients.GitHubClient
 	soClient     *clients.StackOverflowClient
@@ -24,6 +24,22 @@ type Scheduler struct {
 	botClient clients.BotClient
 
 	log *logger.Slog
+}
+
+func NewScheduler(
+	repo repositories.TrackingRepository,
+	githubClient *clients.GitHubClient,
+	soClient *clients.StackOverflowClient,
+	botClient clients.BotClient,
+	log *logger.Slog,
+) *Scheduler {
+	return &Scheduler{
+		repo:         repo,
+		githubClient: githubClient,
+		soClient:     soClient,
+		botClient:    botClient,
+		log:          log,
+	}
 }
 
 func (s *Scheduler) Start() {
@@ -37,36 +53,36 @@ func (s *Scheduler) Start() {
 		gocron.DurationJob(seconds*time.Second),
 		gocron.NewTask(s.CheckLinks),
 	)
-
 	if err != nil {
 		s.log.Error("scheduler job error", "error", err)
 		return
 	}
 
-	s.log.Info("scheduler started", "interval", "1m")
-
+	s.log.Info("scheduler started", "interval", "30s")
 	scheduler.Start()
 }
 
 func (s *Scheduler) CheckLinks() {
+	ctx := context.Background()
+
 	s.log.Info("checking links")
 
-	links, err := s.repo.GetAllTrackedLinks()
+	links, err := s.repo.GetAllTrackedLinks(ctx)
 	if err != nil {
 		s.log.Error("failed to get tracked links", "error", err)
 		return
 	}
-	s.log.Info("links found", "count", len(links))
-	for _, link := range links {
 
-		err := s.processLink(link)
-		if err != nil {
+	s.log.Info("links found", "count", len(links))
+
+	for _, link := range links {
+		if err := s.processLink(ctx, link); err != nil {
 			s.log.Warn("link check failed", "url", link.URL, "error", err)
 		}
 	}
 }
 
-func (s *Scheduler) processLink(link domain.Link) error {
+func (s *Scheduler) processLink(ctx context.Context, link domain.Link) error {
 	parsed, err := parsers.ParseLink(link.URL)
 	if err != nil {
 		return err
@@ -77,17 +93,19 @@ func (s *Scheduler) processLink(link domain.Link) error {
 	switch parsed.Source {
 	case "github":
 		newUpdatedAt, err = s.githubClient.GetRepoUpdatedAt(
-			context.Background(),
+			ctx,
 			parsed.GithubOwner,
 			parsed.GithubRepo,
 		)
 
 	case "stackoverflow":
 		newUpdatedAt, err = s.soClient.GetQuestionUpdatedAt(
-			context.Background(),
+			ctx,
 			parsed.StackOverflowQuestionID,
 		)
+
 	default:
+		return nil
 	}
 
 	if err != nil {
@@ -95,18 +113,18 @@ func (s *Scheduler) processLink(link domain.Link) error {
 	}
 
 	if link.LastUpdatedAt.IsZero() {
-		return s.repo.UpdateLastUpdated(link.URL, newUpdatedAt)
+		return s.repo.UpdateLastUpdated(ctx, link.URL, newUpdatedAt)
 	}
 
 	if !newUpdatedAt.After(link.LastUpdatedAt) {
 		return nil
 	}
 
-	if err = s.repo.UpdateLastUpdated(link.URL, newUpdatedAt); err != nil {
+	if err = s.repo.UpdateLastUpdated(ctx, link.URL, newUpdatedAt); err != nil {
 		return err
 	}
 
-	subscribers, err := s.repo.FindSubscribers(link.URL)
+	subscribers, err := s.repo.FindSubscribers(ctx, link.URL)
 	if err != nil {
 		return err
 	}
@@ -120,22 +138,5 @@ func (s *Scheduler) processLink(link domain.Link) error {
 		TgChatIDs: subscribers,
 	}
 
-	return s.botClient.SendUpdate(context.Background(), update)
-}
-
-func NewScheduler(
-	repo repositories.LinkRepository,
-	githubClient *clients.GitHubClient,
-	soClient *clients.StackOverflowClient,
-	botClient clients.BotClient,
-	log *logger.Slog,
-) *Scheduler {
-
-	return &Scheduler{
-		repo:         repo,
-		githubClient: githubClient,
-		soClient:     soClient,
-		botClient:    botClient,
-		log:          log,
-	}
+	return s.botClient.SendUpdate(ctx, update)
 }

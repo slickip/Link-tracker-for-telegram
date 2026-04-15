@@ -1,9 +1,11 @@
 package services
 
 import (
+	"context"
+
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/repositories"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain/repositories"
 )
 
 type LinkService struct {
@@ -18,26 +20,38 @@ func NewLinkService(linkRepo repositories.LinkRepository, chatRepo repositories.
 	}
 }
 
-func (s *LinkService) AddLink(chatID int64, link domain.Link) error {
-	if !s.chatRepo.Exists(chatID) {
+func (s *LinkService) AddLink(ctx context.Context, chatID int64, link domain.Link) error {
+	exists, err := s.chatRepo.Exists(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if !exists {
 		return pkg.ErrChatNotFound
 	}
 
-	return s.linkRepo.Add(chatID, link)
+	return s.linkRepo.Add(ctx, chatID, link)
 }
 
-func (s *LinkService) RemoveLink(chatID int64, url string) error {
-	if !s.chatRepo.Exists(chatID) {
+func (s *LinkService) RemoveLink(ctx context.Context, chatID int64, url string) error {
+	exists, err := s.chatRepo.Exists(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if !exists {
 		return pkg.ErrChatNotFound
 	}
 
-	return s.linkRepo.Remove(chatID, url)
+	return s.linkRepo.Remove(ctx, chatID, url)
 }
 
-func (s *LinkService) ListLinks(chatID int64) ([]domain.Link, error) {
-	if !s.chatRepo.Exists(chatID) {
+func (s *LinkService) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
+	exists, err := s.chatRepo.Exists(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
 		return nil, pkg.ErrChatNotFound
 	}
 
-	return s.linkRepo.List(chatID)
+	return s.linkRepo.List(ctx, chatID)
 }
