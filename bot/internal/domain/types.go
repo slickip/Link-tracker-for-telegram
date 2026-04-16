@@ -1,5 +1,7 @@
 package domain
 
+import "context"
+
 type Logger interface {
 	Debug(msg string, arg ...any)
 	Info(msg string, arg ...any)
@@ -9,5 +11,5 @@ type Logger interface {
 
 type Command interface {
 	Name() string
-	Execute(chatID int64, text string) (string, error)
+	Execute(ctx context.Context, chatID int64, text string) (string, error)
 }

@@ -20,10 +20,8 @@ type Scheduler struct {
 
 	githubClient *clients.GitHubClient
 	soClient     *clients.StackOverflowClient
-
-	botClient clients.BotClient
-
-	log *logger.Slog
+	botClient    clients.BotClient
+	log          *logger.Slog
 }
 
 func NewScheduler(

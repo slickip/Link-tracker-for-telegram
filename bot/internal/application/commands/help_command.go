@@ -1,6 +1,10 @@
 package commands
 
-import "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
+import (
+	"context"
+
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
+)
 
 type HelpCommand struct{}
 
@@ -14,7 +18,7 @@ func (c *HelpCommand) Name() string {
 	return "/help"
 }
 
-func (c *HelpCommand) Execute(chatID int64, _ string) (string, error) {
+func (c *HelpCommand) Execute(ctx context.Context, chatID int64, _ string) (string, error) {
 	return "Доступные команды:\n" +
 		"/start - начало работы с ботом\n" +
 		"/help - показать это сообщение\n" +

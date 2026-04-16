@@ -6,8 +6,8 @@ import (
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/parsers"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/repositories"
 )
 
 type TrackService struct {
@@ -25,21 +25,25 @@ func NewTrackService(
 	}
 }
 
-func (s *TrackService) Start(chatID int64) string {
-	if err := s.client.RegisterChat(context.Background(), chatID); err != nil {
+func (s *TrackService) Start(ctx context.Context, chatID int64) string {
+	if err := s.client.RegisterChat(ctx, chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже"
 	}
 
-	s.repo.Set(chatID, domain.TrackSession{
-		State: domain.StateWaitingForURL,
+	err := s.repo.Set(ctx, chatID, domain.TrackSession{
+		ChatID: chatID,
+		State:  domain.StateWaitingForURL,
 	})
+	if err != nil {
+		return "Не удалось сохранить состояние. Попробуй позже"
+	}
 
 	return "Отправь мне ссылку, которую хочешь отслеживать"
 }
 
-func (s *TrackService) HandleURL(chatID int64, url string) string {
-	session, ok := s.repo.Get(chatID)
-	if !ok {
+func (s *TrackService) HandleURL(ctx context.Context, chatID int64, url string) string {
+	session, ok, err := s.repo.Get(ctx, chatID)
+	if err != nil || !ok {
 		return ""
 	}
 
@@ -50,13 +54,18 @@ func (s *TrackService) HandleURL(chatID int64, url string) string {
 	session.URL = url
 	session.State = domain.StateWaitingForTags
 
-	s.repo.Set(chatID, session)
+	if err := s.repo.Set(ctx, chatID, session); err != nil {
+		return "Не удалось сохранить состояние. Попробуй позже"
+	}
 
 	return "Отправь мне теги, разделенные запятой, или напиши \"-\" если хочешь пропустить этот этап"
 }
 
-func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
-	session, ok := s.repo.Get(chatID)
+func (s *TrackService) HandleTags(ctx context.Context, chatID int64, text string) (string, error) {
+	session, ok, err := s.repo.Get(ctx, chatID)
+	if err != nil {
+		return "Не удалось получить состояние. Попробуй позже", err
+	}
 	if !ok {
 		return "", nil
 	}
@@ -65,7 +74,6 @@ func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
 
 	if text != "-" {
 		raw := strings.Split(text, ",")
-
 		for _, t := range raw {
 			trimmed := strings.TrimSpace(t)
 			if trimmed != "" {
@@ -74,36 +82,29 @@ func (s *TrackService) HandleTags(chatID int64, text string) (string, error) {
 		}
 	}
 
-	//на случай если пользователь не вызывал /start
-	if err := s.client.RegisterChat(context.Background(), chatID); err != nil {
+	if err := s.client.RegisterChat(ctx, chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже", err
 	}
 
-	err := s.client.AddLink(
-		context.Background(),
-		chatID,
-		session.URL,
-		tags,
-	)
-
+	err = s.client.AddLink(ctx, chatID, session.URL, tags)
 	if err != nil {
 		if strings.Contains(err.Error(), "AlreadyExists") ||
 			strings.Contains(err.Error(), "already tracked") {
-
-			s.repo.Reset(chatID)
+			_ = s.repo.Reset(ctx, chatID)
 			return "Ссылка уже отслеживается", nil
 		}
 
 		return "Не получилось добавить ссылку", err
 	}
 
-	s.repo.Reset(chatID)
+	if err := s.repo.Reset(ctx, chatID); err != nil {
+		return "Ссылка добавлена, но не удалось очистить состояние", err
+	}
 
 	return "Ссылка добавлена успешно!", nil
 }
 
-func (s *TrackService) Cancel(chatID int64) string {
-	s.repo.Reset(chatID)
-
+func (s *TrackService) Cancel(ctx context.Context, chatID int64) string {
+	_ = s.repo.Reset(ctx, chatID)
 	return "Отслеживание отменено"
 }
