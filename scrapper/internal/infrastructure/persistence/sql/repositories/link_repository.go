@@ -7,16 +7,21 @@ import (
 
 	"github.com/lib/pq"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	repo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain/repositories"
 )
 
 type SqlChatLinkRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *logger.Slog
 }
 
-func NewSQLChatLinkRepository(db *sql.DB) repo.LinkRepository {
-	return &SqlChatLinkRepository{db: db}
+func NewSQLChatLinkRepository(db *sql.DB, log *logger.Slog) repo.LinkRepository {
+	return &SqlChatLinkRepository{
+		db:     db,
+		logger: log,
+	}
 }
 
 func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link domain.Link) error {
@@ -26,6 +31,7 @@ func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.logger.Error("failed to rollback tx", "error", err)
 		}
 	}()
 
@@ -109,6 +115,7 @@ func (r *SqlChatLinkRepository) List(ctx context.Context, chatID int64) ([]domai
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
+			r.logger.Error("failed to close rows", "error", err)
 		}
 	}()
 
@@ -165,6 +172,7 @@ func (r *SqlChatLinkRepository) ListByTag(ctx context.Context, chatID int64, tag
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
+			r.logger.Error("failed to close rows", "error", err)
 		}
 	}()
 
@@ -224,6 +232,7 @@ func (r *SqlChatLinkRepository) getTagsByLinkIDs(ctx context.Context, chatID int
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
+			r.logger.Error("failed to close rows", "error", err)
 		}
 	}()
 
