@@ -53,7 +53,7 @@ func main() {
 
 		chatRepo = sqlrepo.NewSQLChatRepository(sqlDB)
 		linkRepo = sqlrepo.NewSQLChatLinkRepository(sqlDB, log)
-		trackingRepo = sqlrepo.NewSQLTrackingRepository(sqlDB)
+		trackingRepo = sqlrepo.NewSQLTrackingRepository(sqlDB, log)
 
 		log.Info("scrapper repositories initialized", "access_type", "SQL")
 
