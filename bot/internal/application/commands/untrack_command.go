@@ -43,32 +43,11 @@ func (c *UntrackCommand) Execute(ctx context.Context, chatID int64, text string)
 			return "Использование: /untrack tag <tag>", nil
 		}
 
-		tagToRemove := args[2]
+		tagToRemove := strings.Join(args[2:], " ")
 
-		links, err := c.client.ListLinks(ctx, chatID)
+		removedCount, err := c.client.RemoveLinksByTag(ctx, chatID, tagToRemove)
 		if err != nil {
-			return "Не получилось получить список ссылок", err
-		}
-
-		var removedCount int
-
-		for _, link := range links {
-			hasRequestedTag := false
-
-			for _, currentTag := range link.Tags {
-				if currentTag == tagToRemove {
-					hasRequestedTag = true
-					break
-				}
-			}
-
-			if !hasRequestedTag {
-				continue
-			}
-
-			if err := c.client.RemoveLink(ctx, chatID, link.URL); err == nil {
-				removedCount++
-			}
+			return "Не получилось удалить ссылки по тегу", err
 		}
 
 		if removedCount == 0 {

@@ -16,6 +16,7 @@ type ScrapperClient interface {
 	DeleteChat(ctx context.Context, chatID int64) error
 	AddLink(ctx context.Context, chatID int64, url string, tags []string) error
 	RemoveLink(ctx context.Context, chatID int64, url string) error
+	RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error)
 	ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error)
 }
 
@@ -35,6 +36,11 @@ type addLinkRequest struct {
 	ChatID int64    `json:"chatId"`
 	URL    string   `json:"url"`
 	Tags   []string `json:"tags"`
+}
+
+type removeByTagRequest struct {
+	ChatID int64  `json:"chatId"`
+	Tag    string `json:"tag"`
 }
 
 func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) error {
@@ -194,4 +200,51 @@ func (c *HTTPscrapperClient) ListLinks(ctx context.Context, chatID int64) ([]dom
 	}
 
 	return links, nil
+}
+
+func (c *HTTPscrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	body := removeByTagRequest{
+		ChatID: chatID,
+		Tag:    tag,
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		return 0, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodDelete,
+		c.baseURL+"/links/by-tag",
+		bytes.NewBuffer(data),
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("scrapper returned status %d", resp.StatusCode)
+	}
+
+	type removeByTagResponse struct {
+		RemovedCount int64 `json:"removedCount"`
+	}
+
+	var result removeByTagResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, pkg.ErrInvalidAPIResponse
+	}
+
+	return result.RemovedCount, nil
 }

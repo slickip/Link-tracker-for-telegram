@@ -77,3 +77,15 @@ func (c *GRPCScrapperClient) ListLinks(ctx context.Context, chatID int64) ([]dom
 
 	return links, nil
 }
+
+func (c *GRPCScrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	resp, err := c.client.RemoveLinksByTag(ctx, &scrapperpb.RemoveLinksByTagRequest{
+		ChatId: chatID,
+		Tag:    tag,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return resp.RemovedCount, nil
+}

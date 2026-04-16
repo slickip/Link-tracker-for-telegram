@@ -69,6 +69,6 @@ func MustLoad() *Config {
 		ScrapperHTTPAddr: scrapperHTTPAddr,
 		ScrapperGRPCAddr: scrapperGRPCAddr,
 		DatabaseURL:      databaseURL,
-		AccessType:       accessType,
+		AccessType:       AccessType(accessType),
 	}
 }

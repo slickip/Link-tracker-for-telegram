@@ -79,7 +79,6 @@ func (b *Bot) Run(
 		response, err := dispatcher.Dispatch(ctx, chatID, text)
 		if err != nil {
 			log.Warn("command execution error", "error", err)
-			continue
 		}
 
 		if response != "" {

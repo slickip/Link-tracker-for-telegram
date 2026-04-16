@@ -9,6 +9,7 @@ service ScrapperService {
   rpc DeleteChat(ChatIdRequest) returns (Empty);
   rpc AddLink(AddLinkRequest) returns (Empty);
   rpc RemoveLink(RemoveLinkRequest) returns (Empty);
+  rpc RemoveLinksByTag(RemoveLinksByTagRequest) returns (RemoveLinksByTagResponse);
   rpc ListLinks(ListLinksRequest) returns (ListLinksResponse);
 }
 
@@ -27,6 +28,15 @@ message AddLinkRequest {
 message RemoveLinkRequest {
   int64 chat_id = 1;
   string url = 2;
+}
+
+message RemoveLinksByTagRequest {
+  int64 chat_id = 1;
+  string tag = 2;
+}
+
+message RemoveLinksByTagResponse {
+  int64 removed_count = 1;
 }
 
 message Link {

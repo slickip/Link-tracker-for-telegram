@@ -9,6 +9,7 @@ import (
 type LinkRepository interface {
 	Add(ctx context.Context, chatID int64, link domain.Link) error
 	Remove(ctx context.Context, chatID int64, url string) error
+	RemoveByTag(ctx context.Context, chatID int64, tag string) (int64, error)
 	List(ctx context.Context, chatID int64) ([]domain.Link, error)
 	ListByTag(ctx context.Context, chatID int64, tag string) ([]domain.Link, error)
 }
