@@ -55,3 +55,15 @@ func (s *LinkService) ListLinks(ctx context.Context, chatID int64) ([]domain.Lin
 
 	return s.linkRepo.List(ctx, chatID)
 }
+
+func (s *LinkService) RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	exists, err := s.chatRepo.Exists(ctx, chatID)
+	if err != nil {
+		return 0, err
+	}
+	if !exists {
+		return 0, pkg.ErrChatNotFound
+	}
+
+	return s.linkRepo.RemoveByTag(ctx, chatID, tag)
+}

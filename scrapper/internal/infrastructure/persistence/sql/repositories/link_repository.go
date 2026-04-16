@@ -3,7 +3,10 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"time"
 
+	"github.com/lib/pq"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	repo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain/repositories"
 )
@@ -57,10 +60,10 @@ func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 		}
 
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO link_tags (link_id, tag_id)
-			VALUES ($1, $2)
+			INSERT INTO subscription_tags (chat_id, link_id, tag_id)
+			VALUES ($1, $2, $3)
 			ON CONFLICT DO NOTHING
-		`, linkID, tagID)
+		`, chatID, linkID, tagID)
 		if err != nil {
 			return err
 		}
@@ -70,18 +73,30 @@ func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 }
 
 func (r *SqlChatLinkRepository) Remove(ctx context.Context, chatID int64, url string) error {
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		DELETE FROM subscriptions
 		WHERE chat_id = $1
 		  AND link_id = (SELECT id FROM links WHERE url = $2)
 	`, chatID, url)
+	if err != nil {
+		return err
+	}
 
-	return err
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return pkg.ErrLinkNotFound
+	}
+
+	return nil
 }
 
 func (r *SqlChatLinkRepository) List(ctx context.Context, chatID int64) ([]domain.Link, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT l.url, l.last_updated
+		SELECT l.id, l.url, l.last_updated
 		FROM links l
 		JOIN subscriptions s ON l.id = s.link_id
 		WHERE s.chat_id = $1
@@ -91,20 +106,40 @@ func (r *SqlChatLinkRepository) List(ctx context.Context, chatID int64) ([]domai
 	}
 	defer rows.Close()
 
-	var result []domain.Link
+	type linkRow struct {
+		ID          int64
+		URL         string
+		LastUpdated time.Time
+	}
+
+	var rawLinks []linkRow
+	var linkIDs []int64
 
 	for rows.Next() {
-		var link domain.Link
-
-		if err := rows.Scan(&link.URL, &link.LastUpdatedAt); err != nil {
+		var row linkRow
+		if err := rows.Scan(&row.ID, &row.URL, &row.LastUpdated); err != nil {
 			return nil, err
 		}
-
-		result = append(result, link)
+		rawLinks = append(rawLinks, row)
+		linkIDs = append(linkIDs, row.ID)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	tagsByLinkID, err := r.getTagsByLinkIDs(ctx, chatID, linkIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.Link, 0, len(rawLinks))
+	for _, row := range rawLinks {
+		result = append(result, domain.Link{
+			URL:           row.URL,
+			LastUpdatedAt: row.LastUpdated,
+			Tags:          tagsByLinkID[row.ID],
+		})
 	}
 
 	return result, nil
@@ -112,11 +147,11 @@ func (r *SqlChatLinkRepository) List(ctx context.Context, chatID int64) ([]domai
 
 func (r *SqlChatLinkRepository) ListByTag(ctx context.Context, chatID int64, tag string) ([]domain.Link, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT DISTINCT l.url, l.last_updated
+		SELECT DISTINCT l.id, l.url, l.last_updated
 		FROM links l
 		JOIN subscriptions s ON l.id = s.link_id
-		JOIN link_tags lt ON l.id = lt.link_id
-		JOIN tags t ON t.id = lt.tag_id
+		JOIN subscription_tags st ON st.link_id = l.id AND st.chat_id = s.chat_id
+		JOIN tags t ON t.id = st.tag_id
 		WHERE s.chat_id = $1 AND t.name = $2
 	`, chatID, tag)
 	if err != nil {
@@ -124,21 +159,95 @@ func (r *SqlChatLinkRepository) ListByTag(ctx context.Context, chatID int64, tag
 	}
 	defer rows.Close()
 
-	var result []domain.Link
+	type linkRow struct {
+		ID          int64
+		URL         string
+		LastUpdated time.Time
+	}
+
+	var rawLinks []linkRow
+	var linkIDs []int64
 
 	for rows.Next() {
-		var link domain.Link
-
-		if err := rows.Scan(&link.URL, &link.LastUpdatedAt); err != nil {
+		var row linkRow
+		if err := rows.Scan(&row.ID, &row.URL, &row.LastUpdated); err != nil {
 			return nil, err
 		}
-
-		result = append(result, link)
+		rawLinks = append(rawLinks, row)
+		linkIDs = append(linkIDs, row.ID)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
+	tagsByLinkID, err := r.getTagsByLinkIDs(ctx, chatID, linkIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.Link, 0, len(rawLinks))
+	for _, row := range rawLinks {
+		result = append(result, domain.Link{
+			URL:           row.URL,
+			LastUpdatedAt: row.LastUpdated,
+			Tags:          tagsByLinkID[row.ID],
+		})
+	}
+
 	return result, nil
+}
+
+func (r *SqlChatLinkRepository) getTagsByLinkIDs(ctx context.Context, chatID int64, linkIDs []int64) (map[int64][]string, error) {
+	if len(linkIDs) == 0 {
+		return map[int64][]string{}, nil
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT st.link_id, t.name
+		FROM subscription_tags st
+		JOIN tags t ON t.id = st.tag_id
+		WHERE st.chat_id = $1
+		  AND st.link_id = ANY($2)
+	`, chatID, pq.Array(linkIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]string)
+	for rows.Next() {
+		var linkID int64
+		var tag string
+		if err := rows.Scan(&linkID, &tag); err != nil {
+			return nil, err
+		}
+		result[linkID] = append(result[linkID], tag)
+	}
+
+	return result, rows.Err()
+}
+
+func (r *SqlChatLinkRepository) RemoveByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	res, err := r.db.ExecContext(ctx, `
+		DELETE FROM subscriptions s
+		WHERE s.chat_id = $1
+		  AND s.link_id IN (
+			  SELECT st.link_id
+			  FROM subscription_tags st
+			  JOIN tags t ON t.id = st.tag_id
+			  WHERE st.chat_id = $1
+			    AND t.name = $2
+		  )
+	`, chatID, tag)
+	if err != nil {
+		return 0, err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return rows, nil
 }

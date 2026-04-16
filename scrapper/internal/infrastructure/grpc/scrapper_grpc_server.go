@@ -98,6 +98,24 @@ func (s *ScrapperGRPCServer) RemoveLink(
 	return &scrapperpb.Empty{}, nil
 }
 
+func (s *ScrapperGRPCServer) RemoveLinksByTag(
+	ctx context.Context,
+	req *scrapperpb.RemoveLinksByTagRequest,
+) (*scrapperpb.RemoveLinksByTagResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "nil request")
+	}
+
+	removedCount, err := s.linkService.RemoveLinksByTag(ctx, req.GetChatId(), req.GetTag())
+	if err != nil {
+		return nil, statusFromErr(err)
+	}
+
+	return &scrapperpb.RemoveLinksByTagResponse{
+		RemovedCount: removedCount,
+	}, nil
+}
+
 func (s *ScrapperGRPCServer) ListLinks(
 	ctx context.Context,
 	req *scrapperpb.ListLinksRequest,

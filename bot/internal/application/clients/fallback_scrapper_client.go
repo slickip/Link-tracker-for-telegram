@@ -71,3 +71,14 @@ func (c *FallbackScrapperClient) ListLinks(ctx context.Context, chatID int64) ([
 	}
 	return links, nil
 }
+
+func (c *FallbackScrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	count, err := c.http.RemoveLinksByTag(ctx, chatID, tag)
+	if err != nil {
+		if c.log != nil {
+			c.log.Warn("scrapper http failed, fallback to grpc", "error", err)
+		}
+		return c.grpc.RemoveLinksByTag(ctx, chatID, tag)
+	}
+	return count, nil
+}

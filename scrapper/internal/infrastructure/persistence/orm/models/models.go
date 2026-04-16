@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
+)
 
 type ChatModel struct {
 	ID int64 `gorm:"column:id,primaryKey"`
@@ -11,9 +15,11 @@ func (ChatModel) TableName() string {
 }
 
 type LinkModel struct {
-	ID          int64     `gorm:"column:id;primaryKey"`
-	URL         string    `gorm:"column:url;uniqueIndex;not null"`
-	LastUpdated time.Time `gorm:"column:last_updated"`
+	ID          int64             `gorm:"column:id;primaryKey"`
+	URL         string            `gorm:"column:url;uniqueIndex;not null"`
+	Source      domain.LinkSource `gorm:"column:source"`
+	LastUpdated time.Time         `gorm:"column:last_updated"`
+	LastChecked time.Time         `gorm:"column:last_checked"`
 }
 
 func (LinkModel) TableName() string {
@@ -45,4 +51,14 @@ type LinkTagModel struct {
 
 func (LinkTagModel) TableName() string {
 	return "link_tags"
+}
+
+type SubscriptionTagModel struct {
+	ChatID int64 `gorm:"column:chat_id;primaryKey"`
+	LinkID int64 `gorm:"column:link_id;primaryKey"`
+	TagID  int64 `gorm:"column:tag_id;primaryKey"`
+}
+
+func (SubscriptionTagModel) TableName() string {
+	return "subscription_tags"
 }

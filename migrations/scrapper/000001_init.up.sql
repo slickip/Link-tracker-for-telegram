@@ -19,12 +19,24 @@ CREATE TABLE tags (
     name TEXT UNIQUE
 );
 
-CREATE TABLE link_tags (
-    link_id BIGINT REFERENCES links(id) ON DELETE CASCADE,
-    tag_id BIGINT REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (link_id, tag_id)
+CREATE TABLE subscription_tags (
+    chat_id BIGINT NOT NULL,
+    link_id BIGINT NOT NULL,
+    tag_id BIGINT NOT NULL,
+    PRIMARY KEY (chat_id, link_id, tag_id),
+
+    FOREIGN KEY (chat_id, link_id)
+        REFERENCES subscriptions(chat_id, link_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (tag_id)
+        REFERENCES tags(id)
+        ON DELETE CASCADE
 );
 
 CREATE INDEX idx_links_url ON links(url);
 CREATE INDEX idx_subscriptions_chat_id ON subscriptions(chat_id);
 CREATE INDEX idx_subscriptions_link_id ON subscriptions(link_id);
+CREATE INDEX idx_subscription_tags_chat_id ON subscription_tags(chat_id);
+CREATE INDEX idx_subscription_tags_link_id ON subscription_tags(link_id);
+CREATE INDEX idx_subscription_tags_tag_id ON subscription_tags(tag_id);
