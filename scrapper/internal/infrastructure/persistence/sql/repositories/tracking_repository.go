@@ -5,16 +5,21 @@ import (
 	"database/sql"
 	"time"
 
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	repo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain/repositories"
 )
 
 type SqlTrackingRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *logger.Slog
 }
 
-func NewSQLTrackingRepository(db *sql.DB) repo.TrackingRepository {
-	return &SqlTrackingRepository{db: db}
+func NewSQLTrackingRepository(db *sql.DB, log *logger.Slog) repo.TrackingRepository {
+	return &SqlTrackingRepository{
+		db:     db,
+		logger: log,
+	}
 }
 
 func (r *SqlTrackingRepository) FindSubscribers(ctx context.Context, url string) ([]int64, error) {
@@ -27,7 +32,9 @@ func (r *SqlTrackingRepository) FindSubscribers(ctx context.Context, url string)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	if err := rows.Close(); err != nil {
+		r.logger.Error("failed to close rows", "error", err)
+	}
 
 	var result []int64
 
@@ -54,7 +61,9 @@ func (r *SqlTrackingRepository) GetAllTrackedLinks(ctx context.Context) ([]domai
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	if err := rows.Close(); err != nil {
+		r.logger.Error("failed to close rows", "error", err)
+	}
 
 	var result []domain.Link
 
