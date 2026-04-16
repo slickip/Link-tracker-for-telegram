@@ -75,6 +75,10 @@ func (m *mockScrapperClient) RemoveLink(ctx context.Context, chatID int64, url s
 	return nil
 }
 
+func (m *mockScrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockScrapperClient) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
 	return m.links, nil
 }

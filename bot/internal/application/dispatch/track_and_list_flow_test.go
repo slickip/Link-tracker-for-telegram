@@ -19,6 +19,7 @@ type trackAndListMockScrapperClient struct {
 	listLinksFn    func(ctx context.Context, chatID int64) ([]domain.Link, error)
 	addLinkFn      func(ctx context.Context, chatID int64, url string, tags []string) error
 	removeLinkFn   func(ctx context.Context, chatID int64, url string) error
+	removeByTagFn  func(ctx context.Context, chatID int64, tag string) (int64, error)
 }
 
 func (m *trackAndListMockScrapperClient) RegisterChat(ctx context.Context, chatID int64) error {
@@ -44,6 +45,13 @@ func (m *trackAndListMockScrapperClient) RemoveLink(ctx context.Context, chatID 
 		return m.removeLinkFn(ctx, chatID, url)
 	}
 	return nil
+}
+
+func (m *trackAndListMockScrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	if m.removeByTagFn != nil {
+		return m.removeByTagFn(ctx, chatID, tag)
+	}
+	return 0, nil
 }
 
 func (m *trackAndListMockScrapperClient) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
