@@ -2,11 +2,13 @@ package integration_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	domrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain/repositories"
 	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/orm/repositories"
@@ -50,7 +52,8 @@ func TestLinkRepositoryScenarios(t *testing.T) {
 		{
 			name: "sql",
 			make: func(t *testing.T, tdb *testDB) domrepo.LinkRepository {
-				return sqlrepo.NewSQLChatLinkRepository(tdb.SQL)
+				log := logger.New(slog.LevelError)
+				return sqlrepo.NewSQLChatLinkRepository(tdb.SQL, log)
 			},
 		},
 		{
