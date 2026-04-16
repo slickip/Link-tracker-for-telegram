@@ -24,7 +24,9 @@ func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	var linkID int64
 	err = tx.QueryRowContext(ctx, `
@@ -104,7 +106,9 @@ func (r *SqlChatLinkRepository) List(ctx context.Context, chatID int64) ([]domai
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	type linkRow struct {
 		ID          int64
@@ -157,7 +161,9 @@ func (r *SqlChatLinkRepository) ListByTag(ctx context.Context, chatID int64, tag
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	type linkRow struct {
 		ID          int64
@@ -213,7 +219,9 @@ func (r *SqlChatLinkRepository) getTagsByLinkIDs(ctx context.Context, chatID int
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	result := make(map[int64][]string)
 	for rows.Next() {
