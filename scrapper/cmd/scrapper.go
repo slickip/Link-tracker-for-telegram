@@ -66,6 +66,7 @@ func main() {
 
 		chatRepo = ormrepo.NewORMChatRepository(gormDB)
 		linkRepo = ormrepo.NewORMChatLinkRepository(gormDB)
+		trackingRepo = ormrepo.NewGormTrackingRepository(gormDB)
 
 		log.Info("scrapper repositories initialized", "access_type", "ORM")
 
