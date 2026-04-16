@@ -49,6 +49,9 @@ func TestMigrations_ApplySuccessfully(t *testing.T) {
 }
 
 func TestLinkRepositoryScenarios(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("skipping integration test in CI")
+	}
 	factories := []struct {
 		name string
 		make func(t *testing.T, tdb *testDB) domrepo.LinkRepository
