@@ -25,14 +25,12 @@ func (c *UntrackCommand) Name() string {
 	return "/untrack"
 }
 
-func (c *UntrackCommand) Execute(chatID int64, text string) (string, error) {
+func (c *UntrackCommand) Execute(ctx context.Context, chatID int64, text string) (string, error) {
 	args := strings.Fields(text)
 
 	if len(args) < minArgsForURL {
 		return "Использование:\n/untrack <url> — удалить по ссылке\n/untrack tag <tag> — удалить все ссылки с тегом", nil
 	}
-
-	ctx := context.Background()
 
 	if err := c.client.RegisterChat(ctx, chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже", err

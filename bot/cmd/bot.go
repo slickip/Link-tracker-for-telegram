@@ -10,12 +10,16 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/commands"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/adapters"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/config"
 	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/repositories"
+	dbpkgorm "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/orm/database"
+	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/orm/repositories"
+	dbpkgsql "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/sql/database"
+	sqlrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/sql/repositories"
 	botpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/bot"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"golang.org/x/sync/errgroup"
@@ -38,10 +42,9 @@ func main() {
 		log.Warn("failed to set bot commands", "error", err)
 	}
 
-	var (
-		httpScrapperClient                        = clients.NewScrapperClient(cfg.ScrapperURL)
-		scrapperClient     clients.ScrapperClient = httpScrapperClient
-	)
+	httpScrapperClient := clients.NewScrapperClient(cfg.ScrapperURL)
+
+	var scrapperClient clients.ScrapperClient = httpScrapperClient
 
 	grpcScrapperClient, err := clients.NewGRPCScrapperClient(cfg.ScrapperGRPCAddr)
 	if err != nil {
@@ -51,23 +54,49 @@ func main() {
 		scrapperClient = clients.NewFallbackScrapperClient(httpScrapperClient, grpcScrapperClient, log)
 	}
 
-	var (
-		trackRepo = repositories.NewInMemoryTrackSessionRepository()
+	var trackRepo repositories.TrackSessionRepository
 
-		trackService = services.NewTrackService(
-			scrapperClient,
-			trackRepo,
-		)
+	switch cfg.AccessType {
+	case "SQL":
+		sqlDB, err := dbpkgsql.NewSQLDB(cfg.DatabaseURL)
+		if err != nil {
+			log.Error("failed to connect sql db", "error", err)
+			os.Exit(1)
+		}
 
-		dispatcher = commands.NewDefaultDispatcher(
-			scrapperClient,
-			trackService,
-			trackRepo,
-		)
+		if err := sqlDB.Ping(); err != nil {
+			log.Error("failed to ping sql db", "error", err)
+			os.Exit(1)
+		}
 
-		updatesHandler = handlers.NewUpdatesHandler(bot)
-		router         = httpserver.NewBotRouter(updatesHandler)
+		trackRepo = sqlrepo.NewSQLTrackSessionRepository(sqlDB)
+		log.Info("bot repository initialized", "access_type", "SQL")
+
+	case "ORM":
+		gormDB, err := dbpkgorm.NewGormDB(cfg.DatabaseURL)
+		if err != nil {
+			log.Error("failed to connect gorm db", "error", err)
+			os.Exit(1)
+		}
+
+		trackRepo = ormrepo.NewORMTrackSessionRepository(gormDB)
+		log.Info("bot repository initialized", "access_type", "ORM")
+
+	default:
+		log.Error("unknown access type", "access_type", cfg.AccessType)
+		os.Exit(1)
+	}
+
+	trackService := services.NewTrackService(scrapperClient, trackRepo)
+
+	dispatcher := commands.NewDefaultDispatcher(
+		scrapperClient,
+		trackService,
+		trackRepo,
 	)
+
+	updatesHandler := handlers.NewUpdatesHandler(bot)
+	router := httpserver.NewBotRouter(updatesHandler)
 
 	g, _ := errgroup.WithContext(context.Background())
 
@@ -94,12 +123,13 @@ func main() {
 		return grpcSrv.Serve(lis)
 	})
 
-	log.Info("bot started successfully")
-
 	g.Go(func() error {
+		log.Info("telegram bot loop starting")
 		bot.Run(dispatcher, log)
 		return nil
 	})
+
+	log.Info("bot started successfully")
 
 	if err := g.Wait(); err != nil {
 		log.Error("service failed", "error", err)

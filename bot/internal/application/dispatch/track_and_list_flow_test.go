@@ -7,12 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/commands"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/dispatch"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/repositories"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
 )
 
 type trackAndListMockScrapperClient struct {
@@ -55,7 +54,7 @@ func (m *trackAndListMockScrapperClient) ListLinks(ctx context.Context, chatID i
 }
 
 func setupTrackAndListDispatcher(
-	repo *repositories.InMemoryTrackSessionRepository,
+	repo *fakeTrackSessionRepo,
 	client clients.ScrapperClient,
 ) *dispatch.Dispatcher {
 	trackService := services.NewTrackService(client, repo)
@@ -74,8 +73,9 @@ func setupTrackAndListDispatcher(
 }
 
 func TestTrackFlow_Positive(t *testing.T) {
+	ctx := context.Background()
 	chatID := int64(1)
-	repo := repositories.NewInMemoryTrackSessionRepository()
+	repo := newFakeTrackSessionRepo()
 
 	var gotChatID int64
 	var gotURL string
@@ -92,7 +92,7 @@ func TestTrackFlow_Positive(t *testing.T) {
 
 	d := setupTrackAndListDispatcher(repo, mock)
 
-	resp, err := d.Dispatch(chatID, "/track")
+	resp, err := d.Dispatch(ctx, chatID, "/track")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestTrackFlow_Positive(t *testing.T) {
 		t.Fatalf("unexpected response for /track: %q", resp)
 	}
 
-	resp, err = d.Dispatch(chatID, "https://github.com/user/repo")
+	resp, err = d.Dispatch(ctx, chatID, "https://github.com/user/repo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestTrackFlow_Positive(t *testing.T) {
 		t.Fatalf("unexpected response for URL step: %q", resp)
 	}
 
-	resp, err = d.Dispatch(chatID, "work, bug")
+	resp, err = d.Dispatch(ctx, chatID, "work, bug")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,15 +126,19 @@ func TestTrackFlow_Positive(t *testing.T) {
 		t.Fatalf("expected tags [work bug], got %#v", gotTags)
 	}
 
-	_, active := repo.Get(chatID)
+	_, active, err := repo.Get(ctx, chatID)
+	if err != nil {
+		t.Fatalf("unexpected repo error: %v", err)
+	}
 	if active {
 		t.Fatalf("expected track session to be reset after successful add")
 	}
 }
 
 func TestTrackFlow_InvalidLink(t *testing.T) {
+	ctx := context.Background()
 	chatID := int64(2)
-	repo := repositories.NewInMemoryTrackSessionRepository()
+	repo := newFakeTrackSessionRepo()
 
 	addCalled := false
 	mock := &trackAndListMockScrapperClient{
@@ -146,11 +150,11 @@ func TestTrackFlow_InvalidLink(t *testing.T) {
 
 	d := setupTrackAndListDispatcher(repo, mock)
 
-	if _, err := d.Dispatch(chatID, "/track"); err != nil {
+	if _, err := d.Dispatch(ctx, chatID, "/track"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	resp, err := d.Dispatch(chatID, "tbank://github.com/user/repo")
+	resp, err := d.Dispatch(ctx, chatID, "tbank://github.com/user/repo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -161,7 +165,10 @@ func TestTrackFlow_InvalidLink(t *testing.T) {
 		t.Fatalf("expected AddLink not to be called on invalid link")
 	}
 
-	session, ok := repo.Get(chatID)
+	session, ok, err := repo.Get(ctx, chatID)
+	if err != nil {
+		t.Fatalf("unexpected repo error: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected session to still exist after invalid link")
 	}
@@ -174,8 +181,9 @@ func TestTrackFlow_InvalidLink(t *testing.T) {
 }
 
 func TestTrackFlow_AlreadySubscribed(t *testing.T) {
+	ctx := context.Background()
 	chatID := int64(3)
-	repo := repositories.NewInMemoryTrackSessionRepository()
+	repo := newFakeTrackSessionRepo()
 
 	mock := &trackAndListMockScrapperClient{
 		addLinkFn: func(ctx context.Context, cID int64, url string, tags []string) error {
@@ -185,15 +193,15 @@ func TestTrackFlow_AlreadySubscribed(t *testing.T) {
 
 	d := setupTrackAndListDispatcher(repo, mock)
 
-	if _, err := d.Dispatch(chatID, "/track"); err != nil {
+	if _, err := d.Dispatch(ctx, chatID, "/track"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := d.Dispatch(chatID, "https://github.com/user/repo"); err != nil {
+	if _, err := d.Dispatch(ctx, chatID, "https://github.com/user/repo"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	resp, err := d.Dispatch(chatID, "work")
+	resp, err := d.Dispatch(ctx, chatID, "work")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -201,15 +209,19 @@ func TestTrackFlow_AlreadySubscribed(t *testing.T) {
 		t.Fatalf("unexpected already-subscribed response: %q", resp)
 	}
 
-	_, active := repo.Get(chatID)
+	_, active, err := repo.Get(ctx, chatID)
+	if err != nil {
+		t.Fatalf("unexpected repo error: %v", err)
+	}
 	if active {
 		t.Fatalf("expected track session to be reset after already-subscribed")
 	}
 }
 
 func TestListFlow_ActiveSubscriptions(t *testing.T) {
+	ctx := context.Background()
 	chatID := int64(4)
-	repo := repositories.NewInMemoryTrackSessionRepository()
+	repo := newFakeTrackSessionRepo()
 
 	mock := &trackAndListMockScrapperClient{
 		listLinksFn: func(ctx context.Context, cID int64) ([]domain.Link, error) {
@@ -225,7 +237,7 @@ func TestListFlow_ActiveSubscriptions(t *testing.T) {
 
 	d := setupTrackAndListDispatcher(repo, mock)
 
-	resp, err := d.Dispatch(chatID, "/list")
+	resp, err := d.Dispatch(ctx, chatID, "/list")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -241,8 +253,9 @@ func TestListFlow_ActiveSubscriptions(t *testing.T) {
 }
 
 func TestListFlow_NoActiveSubscriptions(t *testing.T) {
+	ctx := context.Background()
 	chatID := int64(5)
-	repo := repositories.NewInMemoryTrackSessionRepository()
+	repo := newFakeTrackSessionRepo()
 
 	mock := &trackAndListMockScrapperClient{
 		listLinksFn: func(ctx context.Context, cID int64) ([]domain.Link, error) {
@@ -252,7 +265,7 @@ func TestListFlow_NoActiveSubscriptions(t *testing.T) {
 
 	d := setupTrackAndListDispatcher(repo, mock)
 
-	resp, err := d.Dispatch(chatID, "/list")
+	resp, err := d.Dispatch(ctx, chatID, "/list")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,8 +275,9 @@ func TestListFlow_NoActiveSubscriptions(t *testing.T) {
 }
 
 func TestListFlow_FilterByTag(t *testing.T) {
+	ctx := context.Background()
 	chatID := int64(6)
-	repo := repositories.NewInMemoryTrackSessionRepository()
+	repo := newFakeTrackSessionRepo()
 
 	mock := &trackAndListMockScrapperClient{
 		listLinksFn: func(ctx context.Context, cID int64) ([]domain.Link, error) {
@@ -276,7 +290,7 @@ func TestListFlow_FilterByTag(t *testing.T) {
 
 	d := setupTrackAndListDispatcher(repo, mock)
 
-	resp, err := d.Dispatch(chatID, "/list go")
+	resp, err := d.Dispatch(ctx, chatID, "/list go")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,4 +301,3 @@ func TestListFlow_FilterByTag(t *testing.T) {
 		t.Fatalf("did not expect non-matching url in response: %q", resp)
 	}
 }
-

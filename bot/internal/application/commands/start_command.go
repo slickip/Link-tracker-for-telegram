@@ -21,7 +21,7 @@ func (c *StartCommand) Name() string {
 	return "/start"
 }
 
-func (c *StartCommand) Execute(chatID int64, _ string) (string, error) {
+func (c *StartCommand) Execute(ctx context.Context, chatID int64, _ string) (string, error) {
 	err := c.client.RegisterChat(context.Background(), chatID)
 	if err != nil {
 		return "Не удалось зарегистрировать пользователя", err
