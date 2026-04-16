@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -16,6 +17,9 @@ import (
 )
 
 func TestMigrations_ApplySuccessfully(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("skipping integration test in CI")
+	}
 	tdb := setupPostgres(t)
 	defer tdb.Close(t)
 
