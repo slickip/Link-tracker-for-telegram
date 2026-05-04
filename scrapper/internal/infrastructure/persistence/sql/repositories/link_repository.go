@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -36,6 +37,7 @@ func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 	}()
 
 	var linkID int64
+
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO links (url, last_updated)
 		VALUES ($1, $2)
@@ -59,12 +61,15 @@ func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 		var tagID int64
 
 		err = tx.QueryRowContext(ctx, `
-			INSERT INTO tags (name)
-			VALUES ($1)
-			ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-			RETURNING id
-		`, tag).Scan(&tagID)
+			SELECT id
+			FROM tags
+			WHERE chat_id = $1 AND name = $2
+		`, chatID, tag).Scan(&tagID)
+
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return pkg.ErrTagNotFound
+			}
 			return err
 		}
 
@@ -164,7 +169,7 @@ func (r *SqlChatLinkRepository) ListByTag(ctx context.Context, chatID int64, tag
 		FROM links l
 		JOIN subscriptions s ON l.id = s.link_id
 		JOIN subscription_tags st ON st.link_id = l.id AND st.chat_id = s.chat_id
-		JOIN tags t ON t.id = st.tag_id
+		JOIN tags t ON t.id = st.tag_id AND t.chat_id = s.chat_id
 		WHERE s.chat_id = $1 AND t.name = $2
 	`, chatID, tag)
 	if err != nil {
@@ -223,7 +228,7 @@ func (r *SqlChatLinkRepository) getTagsByLinkIDs(ctx context.Context, chatID int
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT st.link_id, t.name
 		FROM subscription_tags st
-		JOIN tags t ON t.id = st.tag_id
+		JOIN tags t ON t.id = st.tag_id AND t.chat_id = st.chat_id
 		WHERE st.chat_id = $1
 		  AND st.link_id = ANY($2)
 	`, chatID, pq.Array(linkIDs))
@@ -256,9 +261,9 @@ func (r *SqlChatLinkRepository) RemoveByTag(ctx context.Context, chatID int64, t
 		  AND s.link_id IN (
 			  SELECT st.link_id
 			  FROM subscription_tags st
-			  JOIN tags t ON t.id = st.tag_id
-			  WHERE st.chat_id = $1
-			    AND t.name = $2
+			  JOIN tags t ON t.id = st.tag_id AND t.chat_id = st.chat_id
+			WHERE st.chat_id = $1
+			  AND t.name = $2
 		  )
 	`, chatID, tag)
 	if err != nil {

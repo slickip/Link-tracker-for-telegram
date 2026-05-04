@@ -5,7 +5,7 @@ import (
 )
 
 type ChatModel struct {
-	ID int64 `gorm:"column:id,primaryKey"`
+	ID int64 `gorm:"column:id;primaryKey"`
 }
 
 func (ChatModel) TableName() string {
@@ -32,21 +32,13 @@ func (SubscriptionModel) TableName() string {
 }
 
 type TagModel struct {
-	ID   int64  `gorm:"column:id;primaryKey"`
-	Name string `gorm:"column:name;uniqueIndex;not null"`
+	ID     int64  `gorm:"column:id;primaryKey"`
+	ChatID int64  `gorm:"column:chat_id;not null;uniqueIndex:idx_tags_chat_name"`
+	Name   string `gorm:"column:name;not null;uniqueIndex:idx_tags_chat_name"`
 }
 
 func (TagModel) TableName() string {
 	return "tags"
-}
-
-type LinkTagModel struct {
-	LinkID int64 `gorm:"column:link_id;primaryKey"`
-	TagID  int64 `gorm:"column:tag_id;primaryKey"`
-}
-
-func (LinkTagModel) TableName() string {
-	return "link_tags"
 }
 
 type SubscriptionTagModel struct {

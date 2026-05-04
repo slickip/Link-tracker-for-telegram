@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
@@ -52,17 +53,16 @@ func (r *ORMChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 		}
 
 		for _, tagName := range link.Tags {
-			tag := models.TagModel{Name: tagName}
-
-			err = tx.Clauses(clause.OnConflict{DoNothing: true}).
-				Create(&tag).Error
-			if err != nil {
-				return err
-			}
-
 			var persistedTag models.TagModel
-			err = tx.Where("name = ?", tagName).First(&persistedTag).Error
+
+			err = tx.
+				Where("chat_id = ? AND name = ?", chatID, tagName).
+				First(&persistedTag).Error
+
 			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return pkg.ErrTagNotFound
+				}
 				return err
 			}
 
@@ -147,7 +147,7 @@ func (r *ORMChatLinkRepository) ListByTag(ctx context.Context, chatID int64, tag
 		Select("DISTINCT l.id, l.url, l.last_updated").
 		Joins("JOIN subscriptions s ON l.id = s.link_id").
 		Joins("JOIN subscription_tags st ON st.link_id = l.id AND st.chat_id = s.chat_id").
-		Joins("JOIN tags t ON t.id = st.tag_id").
+		Joins("JOIN tags t ON t.id = st.tag_id AND t.chat_id = s.chat_id").
 		Where("s.chat_id = ? AND t.name = ?", chatID, tag).
 		Find(&linkModels).Error
 	if err != nil {
@@ -190,7 +190,7 @@ func (r *ORMChatLinkRepository) getTagsByLinkIDs(ctx context.Context, chatID int
 	err := r.db.WithContext(ctx).
 		Table("subscription_tags st").
 		Select("st.link_id, t.name").
-		Joins("JOIN tags t ON t.id = st.tag_id").
+		Joins("JOIN tags t ON t.id = st.tag_id AND t.chat_id = st.chat_id").
 		Where("st.chat_id = ? AND st.link_id IN ?", chatID, linkIDs).
 		Find(&rows).Error
 	if err != nil {
@@ -209,7 +209,7 @@ func (r *ORMChatLinkRepository) RemoveByTag(ctx context.Context, chatID int64, t
 	subQuery := r.db.WithContext(ctx).
 		Table("subscription_tags st").
 		Select("st.link_id").
-		Joins("JOIN tags t ON t.id = st.tag_id").
+		Joins("JOIN tags t ON t.id = st.tag_id AND t.chat_id = st.chat_id").
 		Where("st.chat_id = ? AND t.name = ?", chatID, tag)
 
 	res := r.db.WithContext(ctx).
