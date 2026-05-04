@@ -36,6 +36,7 @@ func main() {
 		chatRepo     domainrepo.ChatRepository
 		linkRepo     domainrepo.LinkRepository
 		trackingRepo domainrepo.TrackingRepository
+		tagRepo      domainrepo.TagRepository
 	)
 
 	switch cfg.AccessType {
@@ -54,6 +55,7 @@ func main() {
 		chatRepo = sqlrepo.NewSQLChatRepository(sqlDB)
 		linkRepo = sqlrepo.NewSQLChatLinkRepository(sqlDB, log)
 		trackingRepo = sqlrepo.NewSQLTrackingRepository(sqlDB, log)
+		tagRepo = sqlrepo.NewSQLTagRepository(sqlDB, log)
 
 		log.Info("scrapper repositories initialized", "access_type", "SQL")
 
@@ -67,6 +69,7 @@ func main() {
 		chatRepo = ormrepo.NewORMChatRepository(gormDB)
 		linkRepo = ormrepo.NewORMChatLinkRepository(gormDB)
 		trackingRepo = ormrepo.NewGormTrackingRepository(gormDB)
+		tagRepo = ormrepo.NewORMTagRepository(gormDB)
 
 		log.Info("scrapper repositories initialized", "access_type", "ORM")
 
@@ -77,6 +80,7 @@ func main() {
 
 	chatService := services.NewChatService(chatRepo)
 	linkService := services.NewLinkService(linkRepo, chatRepo)
+	tagService := services.NewTagService(tagRepo, chatRepo)
 
 	httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL)
 
@@ -122,10 +126,12 @@ func main() {
 
 	chatHandler := handlers.NewChatHandler(chatService)
 	linkHandler := handlers.NewLinkHandler(linkService)
+	tagHandler := handlers.NewTagHandler(tagService)
 
 	router := httpserver.NewRouter(
 		chatHandler,
 		linkHandler,
+		tagHandler,
 	)
 
 	log.Info("scrapper HTTP server starting", "addr", cfg.ScrapperHTTPAddr)

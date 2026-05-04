@@ -9,6 +9,7 @@ import (
 func NewRouter(
 	chatHandler *handlers.ChatHandler,
 	linkHandler *handlers.LinkHandler,
+	tagHandler *handlers.TagHandler,
 ) http.Handler {
 
 	mux := http.NewServeMux()
@@ -33,6 +34,21 @@ func NewRouter(
 			linkHandler.AddLink(w, r)
 		case http.MethodDelete:
 			linkHandler.RemoveLink(w, r)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/tags", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			tagHandler.ListTags(w, r)
+		case http.MethodPost:
+			tagHandler.CreateTag(w, r)
+		case http.MethodPut:
+			tagHandler.RenameTag(w, r)
+		case http.MethodDelete:
+			tagHandler.DeleteTag(w, r)
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}

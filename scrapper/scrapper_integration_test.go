@@ -109,17 +109,94 @@ func (r *fakeLinkRepository) ListByTag(ctx context.Context, chatID int64, tag st
 	return result, nil
 }
 
+type fakeTagRepository struct {
+	tags   map[int64]map[string]domain.Tag
+	nextID int64
+}
+
+func newFakeTagRepository() *fakeTagRepository {
+	return &fakeTagRepository{
+		tags:   make(map[int64]map[string]domain.Tag),
+		nextID: 1,
+	}
+}
+
+func (r *fakeTagRepository) Create(ctx context.Context, chatID int64, name string) error {
+	if r.tags[chatID] == nil {
+		r.tags[chatID] = make(map[string]domain.Tag)
+	}
+
+	if _, exists := r.tags[chatID][name]; exists {
+		return pkg.ErrTagExists
+	}
+
+	r.tags[chatID][name] = domain.Tag{
+		ID:     r.nextID,
+		ChatID: chatID,
+		Name:   name,
+	}
+	r.nextID++
+
+	return nil
+}
+
+func (r *fakeTagRepository) List(ctx context.Context, chatID int64) ([]domain.Tag, error) {
+	chatTags := r.tags[chatID]
+
+	result := make([]domain.Tag, 0, len(chatTags))
+	for _, tag := range chatTags {
+		result = append(result, tag)
+	}
+
+	return result, nil
+}
+
+func (r *fakeTagRepository) Rename(ctx context.Context, chatID int64, oldName, newName string) error {
+	chatTags := r.tags[chatID]
+
+	tag, exists := chatTags[oldName]
+	if !exists {
+		return pkg.ErrTagNotFound
+	}
+
+	if _, exists := chatTags[newName]; exists {
+		return pkg.ErrTagExists
+	}
+
+	delete(chatTags, oldName)
+
+	tag.Name = newName
+	chatTags[newName] = tag
+
+	return nil
+}
+
+func (r *fakeTagRepository) Delete(ctx context.Context, chatID int64, name string) error {
+	chatTags := r.tags[chatID]
+
+	if _, exists := chatTags[name]; !exists {
+		return pkg.ErrTagNotFound
+	}
+
+	delete(chatTags, name)
+
+	return nil
+}
+
 func setupScrapperRouter() http.Handler {
 	chatRepo := newFakeChatRepository()
 	linkRepo := newFakeLinkRepository()
+	tagRepo := newFakeTagRepository()
 
 	chatService := services.NewChatService(chatRepo)
 	linkService := services.NewLinkService(linkRepo, chatRepo)
+	tagService := services.NewTagService(tagRepo, chatRepo)
 
 	chatHandler := handlers.NewChatHandler(chatService)
 	linkHandler := handlers.NewLinkHandler(linkService)
+	tagHandler := handlers.NewTagHandler(tagService)
 
-	return httpserver.NewRouter(chatHandler, linkHandler)
+	return httpserver.NewRouter(chatHandler, linkHandler, tagHandler)
 }
 
 func TestScrapper_AddAndGetLink(t *testing.T) {

@@ -16,7 +16,9 @@ CREATE TABLE subscriptions (
 
 CREATE TABLE tags (
     id BIGSERIAL PRIMARY KEY,
-    name TEXT UNIQUE
+    chat_id BIGINT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    UNIQUE (chat_id, name)
 );
 
 CREATE TABLE subscription_tags (
@@ -37,6 +39,8 @@ CREATE TABLE subscription_tags (
 CREATE INDEX idx_links_url ON links(url);
 CREATE INDEX idx_subscriptions_chat_id ON subscriptions(chat_id);
 CREATE INDEX idx_subscriptions_link_id ON subscriptions(link_id);
+CREATE INDEX idx_tags_chat_id ON tags(chat_id);
+CREATE INDEX idx_tags_name ON tags(name);
 CREATE INDEX idx_subscription_tags_chat_id ON subscription_tags(chat_id);
 CREATE INDEX idx_subscription_tags_link_id ON subscription_tags(link_id);
 CREATE INDEX idx_subscription_tags_tag_id ON subscription_tags(tag_id);
