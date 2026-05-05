@@ -13,7 +13,6 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/repositories"
 )
 
 type mockBotClient struct {
@@ -22,6 +21,52 @@ type mockBotClient struct {
 
 func (m *mockBotClient) SendUpdate(ctx context.Context, update domain.LinkUpdate) error {
 	m.calls = append(m.calls, update)
+	return nil
+}
+
+type fakeTrackingRepository struct {
+	linksByURL       map[string]domain.Link
+	subscribersByURL map[string]map[int64]struct{}
+}
+
+func newFakeTrackingRepository() *fakeTrackingRepository {
+	return &fakeTrackingRepository{
+		linksByURL:       make(map[string]domain.Link),
+		subscribersByURL: make(map[string]map[int64]struct{}),
+	}
+}
+
+func (r *fakeTrackingRepository) Add(chatID int64, link domain.Link) error {
+	r.linksByURL[link.URL] = link
+	if _, ok := r.subscribersByURL[link.URL]; !ok {
+		r.subscribersByURL[link.URL] = make(map[int64]struct{})
+	}
+	r.subscribersByURL[link.URL][chatID] = struct{}{}
+	return nil
+}
+
+func (r *fakeTrackingRepository) FindSubscribers(ctx context.Context, url string) ([]int64, error) {
+	subs := r.subscribersByURL[url]
+	result := make([]int64, 0, len(subs))
+	for chatID := range subs {
+		result = append(result, chatID)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	return result, nil
+}
+
+func (r *fakeTrackingRepository) GetAllTrackedLinks(ctx context.Context) ([]domain.Link, error) {
+	result := make([]domain.Link, 0, len(r.linksByURL))
+	for _, link := range r.linksByURL {
+		result = append(result, link)
+	}
+	return result, nil
+}
+
+func (r *fakeTrackingRepository) UpdateLastUpdated(ctx context.Context, url string, t time.Time) error {
+	link := r.linksByURL[url]
+	link.LastUpdatedAt = t
+	r.linksByURL[url] = link
 	return nil
 }
 
@@ -94,7 +139,7 @@ func TestScheduler_ProcessLink_SendsUpdateOnlyToSubscribers(t *testing.T) {
 	}))
 	defer stackSrv.Close()
 
-	repo := repositories.NewInMemoryLinkRepository()
+	repo := newFakeTrackingRepository()
 	if err := repo.Add(1, domain.Link{URL: linkURL, Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt}); err != nil {
 		t.Fatalf("failed to add link: %v", err)
 	}
@@ -115,7 +160,7 @@ func TestScheduler_ProcessLink_SendsUpdateOnlyToSubscribers(t *testing.T) {
 			log,
 		)
 
-		if err := s.processLink(domain.Link{URL: linkURL, LastUpdatedAt: oldUpdatedAt}); err != nil {
+		if err := s.processLink(context.Background(), domain.Link{URL: linkURL, LastUpdatedAt: oldUpdatedAt}); err != nil {
 			t.Fatalf("unexpected error from processLink: %v", err)
 		}
 	})
@@ -149,7 +194,7 @@ func TestScheduler_CheckLinks_DoesNotPanic_OnExternalAPIError(t *testing.T) {
 	}))
 	defer stackSrv.Close()
 
-	repo := repositories.NewInMemoryLinkRepository()
+	repo := newFakeTrackingRepository()
 	if err := repo.Add(1, domain.Link{URL: linkURL, Tags: []string{"go"}, LastUpdatedAt: oldUpdatedAt}); err != nil {
 		t.Fatalf("failed to add link: %v", err)
 	}

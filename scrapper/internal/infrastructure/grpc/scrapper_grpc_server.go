@@ -34,14 +34,14 @@ func NewScrapperGRPCServer(
 }
 
 func (s *ScrapperGRPCServer) RegisterChat(
-	_ context.Context,
+	ctx context.Context,
 	req *scrapperpb.ChatIdRequest,
 ) (*scrapperpb.Empty, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "nil request")
 	}
 
-	if err := s.chatService.RegisterChat(req.GetChatId()); err != nil {
+	if err := s.chatService.RegisterChat(ctx, req.GetChatId()); err != nil {
 		return nil, statusFromErr(err)
 	}
 
@@ -49,14 +49,14 @@ func (s *ScrapperGRPCServer) RegisterChat(
 }
 
 func (s *ScrapperGRPCServer) DeleteChat(
-	_ context.Context,
+	ctx context.Context,
 	req *scrapperpb.ChatIdRequest,
 ) (*scrapperpb.Empty, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "nil request")
 	}
 
-	if err := s.chatService.DeleteChat(req.GetChatId()); err != nil {
+	if err := s.chatService.DeleteChat(ctx, req.GetChatId()); err != nil {
 		return nil, statusFromErr(err)
 	}
 
@@ -64,7 +64,7 @@ func (s *ScrapperGRPCServer) DeleteChat(
 }
 
 func (s *ScrapperGRPCServer) AddLink(
-	_ context.Context,
+	ctx context.Context,
 	req *scrapperpb.AddLinkRequest,
 ) (*scrapperpb.Empty, error) {
 	if req == nil {
@@ -76,7 +76,7 @@ func (s *ScrapperGRPCServer) AddLink(
 		Tags: req.GetTags(),
 	}
 
-	if err := s.linkService.AddLink(req.GetChatId(), link); err != nil {
+	if err := s.linkService.AddLink(ctx, req.GetChatId(), link); err != nil {
 		return nil, statusFromErr(err)
 	}
 
@@ -84,29 +84,47 @@ func (s *ScrapperGRPCServer) AddLink(
 }
 
 func (s *ScrapperGRPCServer) RemoveLink(
-	_ context.Context,
+	ctx context.Context,
 	req *scrapperpb.RemoveLinkRequest,
 ) (*scrapperpb.Empty, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "nil request")
 	}
 
-	if err := s.linkService.RemoveLink(req.GetChatId(), req.GetUrl()); err != nil {
+	if err := s.linkService.RemoveLink(ctx, req.GetChatId(), req.GetUrl()); err != nil {
 		return nil, statusFromErr(err)
 	}
 
 	return &scrapperpb.Empty{}, nil
 }
 
+func (s *ScrapperGRPCServer) RemoveLinksByTag(
+	ctx context.Context,
+	req *scrapperpb.RemoveLinksByTagRequest,
+) (*scrapperpb.RemoveLinksByTagResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "nil request")
+	}
+
+	removedCount, err := s.linkService.RemoveLinksByTag(ctx, req.GetChatId(), req.GetTag())
+	if err != nil {
+		return nil, statusFromErr(err)
+	}
+
+	return &scrapperpb.RemoveLinksByTagResponse{
+		RemovedCount: removedCount,
+	}, nil
+}
+
 func (s *ScrapperGRPCServer) ListLinks(
-	_ context.Context,
+	ctx context.Context,
 	req *scrapperpb.ListLinksRequest,
 ) (*scrapperpb.ListLinksResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "nil request")
 	}
 
-	links, err := s.linkService.ListLinks(req.GetChatId())
+	links, err := s.linkService.ListLinks(ctx, req.GetChatId())
 	if err != nil {
 		return nil, statusFromErr(err)
 	}

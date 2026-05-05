@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"context"
 	"fmt"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -60,7 +61,6 @@ func (b *Bot) Run(
 	log domain.Logger,
 ) {
 	updates := b.ListenUpdates()
-
 	for update := range updates {
 		if update.Message == nil {
 			continue
@@ -74,10 +74,11 @@ func (b *Bot) Run(
 
 		log.Info("received message", "chat_id", chatID, "text", text)
 
-		response, err := dispatcher.Dispatch(chatID, text)
+		ctx := context.Background()
+
+		response, err := dispatcher.Dispatch(ctx, chatID, text)
 		if err != nil {
 			log.Warn("command execution error", "error", err)
-			continue
 		}
 
 		if response != "" {

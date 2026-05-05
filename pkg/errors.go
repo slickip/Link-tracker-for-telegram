@@ -12,4 +12,8 @@ var (
 	ErrLinkNotTracked       = errors.New("link not tracked")
 	ErrInvalidURL           = errors.New("invalid url")
 	ErrInvalidAPIResponse   = errors.New("invalid api response")
+	ErrLinkNotFound         = errors.New("link is not tracked by this chat")
+	ErrTagNotFound          = errors.New("tag not found")
+	ErrTagExists            = errors.New("tag already exists")
+	ErrInvalidRequest       = errors.New("invalid request")
 )
