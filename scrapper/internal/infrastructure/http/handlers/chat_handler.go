@@ -30,7 +30,7 @@ func (h *ChatHandler) RegisterChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.RegisterChat(chatID)
+	err = h.service.RegisterChat(r.Context(), chatID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -48,7 +48,7 @@ func (h *ChatHandler) DeleteChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.DeleteChat(chatID)
+	err = h.service.DeleteChat(r.Context(), chatID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

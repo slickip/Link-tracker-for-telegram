@@ -30,10 +30,8 @@ func extractTag(text string) string {
 	return args[1]
 }
 
-func (c *ListCommand) Execute(chatID int64, text string) (string, error) {
+func (c *ListCommand) Execute(ctx context.Context, chatID int64, text string) (string, error) {
 	tag := extractTag(text)
-
-	ctx := context.Background()
 
 	if err := c.client.RegisterChat(ctx, chatID); err != nil {
 		return "Не удалось зарегистрировать чат. Попробуй позже", err

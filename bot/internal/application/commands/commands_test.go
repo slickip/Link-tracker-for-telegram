@@ -9,8 +9,32 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/dispatch"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/repositories"
 )
+
+type fakeTrackSessionRepo struct {
+	sessions map[int64]domain.TrackSession
+}
+
+func newFakeTrackSessionRepo() *fakeTrackSessionRepo {
+	return &fakeTrackSessionRepo{
+		sessions: make(map[int64]domain.TrackSession),
+	}
+}
+
+func (r *fakeTrackSessionRepo) Get(ctx context.Context, chatID int64) (domain.TrackSession, bool, error) {
+	session, ok := r.sessions[chatID]
+	return session, ok, nil
+}
+
+func (r *fakeTrackSessionRepo) Set(ctx context.Context, chatID int64, session domain.TrackSession) error {
+	r.sessions[chatID] = session
+	return nil
+}
+
+func (r *fakeTrackSessionRepo) Reset(ctx context.Context, chatID int64) error {
+	delete(r.sessions, chatID)
+	return nil
+}
 
 type mockScrapperClient struct {
 	links []domain.Link
@@ -36,15 +60,17 @@ func (m *mockScrapperClient) RemoveLink(ctx context.Context, chatID int64, url s
 	return nil
 }
 
+func (m *mockScrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64, tag string) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockScrapperClient) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
 	return m.links, nil
 }
 
 func setupDispatcher() *dispatch.Dispatcher {
-	repo := repositories.NewInMemoryTrackSessionRepository()
-
+	repo := newFakeTrackSessionRepo()
 	mockClient := &mockScrapperClient{}
-
 	trackService := services.NewTrackService(mockClient, repo)
 
 	cmds := []domain.Command{
@@ -63,8 +89,7 @@ func setupDispatcher() *dispatch.Dispatcher {
 func TestStartCommand(t *testing.T) {
 	d := setupDispatcher()
 
-	resp, err := d.Dispatch(1, "/start")
-
+	resp, err := d.Dispatch(context.Background(), 1, "/start")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +102,7 @@ func TestStartCommand(t *testing.T) {
 func TestHelpCommand(t *testing.T) {
 	d := setupDispatcher()
 
-	resp, err := d.Dispatch(1, "/help")
-
+	resp, err := d.Dispatch(context.Background(), 1, "/help")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +115,7 @@ func TestHelpCommand(t *testing.T) {
 func TestUnknownCommand(t *testing.T) {
 	d := setupDispatcher()
 
-	resp, err := d.Dispatch(1, "/abracadabra")
-
+	resp, err := d.Dispatch(context.Background(), 1, "/abracadabra")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,8 +128,7 @@ func TestUnknownCommand(t *testing.T) {
 func TestCancelCommand(t *testing.T) {
 	d := setupDispatcher()
 
-	resp, err := d.Dispatch(1, "/cancel")
-
+	resp, err := d.Dispatch(context.Background(), 1, "/cancel")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,8 +141,7 @@ func TestCancelCommand(t *testing.T) {
 func TestTrackCommand(t *testing.T) {
 	d := setupDispatcher()
 
-	resp, err := d.Dispatch(1, "/track")
-
+	resp, err := d.Dispatch(context.Background(), 1, "/track")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,8 +154,7 @@ func TestTrackCommand(t *testing.T) {
 func TestListCommand_Empty(t *testing.T) {
 	d := setupDispatcher()
 
-	resp, err := d.Dispatch(1, "/list")
-
+	resp, err := d.Dispatch(context.Background(), 1, "/list")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,8 +167,7 @@ func TestListCommand_Empty(t *testing.T) {
 func TestUntrackCommand_Invalid(t *testing.T) {
 	d := setupDispatcher()
 
-	resp, err := d.Dispatch(1, "/untrack")
-
+	resp, err := d.Dispatch(context.Background(), 1, "/untrack")
 	if err != nil {
 		t.Fatal(err)
 	}

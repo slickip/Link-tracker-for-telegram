@@ -1,11 +1,12 @@
 package dispatch
 
 import (
+	"context"
 	"strings"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/repositories"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
 )
 
 type Dispatcher struct {
@@ -19,7 +20,6 @@ func NewDispatcher(
 	trackService *services.TrackService,
 	repo repositories.TrackSessionRepository,
 ) *Dispatcher {
-
 	cmdMap := make(map[string]domain.Command)
 
 	for _, cmd := range commands {
@@ -33,8 +33,11 @@ func NewDispatcher(
 	}
 }
 
-func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
-	session, active := d.repo.Get(chatID)
+func (d *Dispatcher) Dispatch(ctx context.Context, chatID int64, text string) (string, error) {
+	session, active, err := d.repo.Get(ctx, chatID)
+	if err != nil {
+		return "Не удалось получить состояние. Попробуй позже", err
+	}
 
 	if strings.HasPrefix(text, "/") {
 		if active && !strings.HasPrefix(text, "/cancel") {
@@ -42,7 +45,9 @@ func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
 		}
 
 		if strings.HasPrefix(text, "/cancel") {
-			d.repo.Reset(chatID)
+			if err := d.repo.Reset(ctx, chatID); err != nil {
+				return "Не удалось отменить операцию. Попробуй позже", err
+			}
 			return "Операция отменена", nil
 		}
 
@@ -53,32 +58,16 @@ func (d *Dispatcher) Dispatch(chatID int64, text string) (string, error) {
 			cmd = d.commands["unknown"]
 		}
 
-		return cmd.Execute(chatID, text)
-	}
-
-	if strings.HasPrefix(text, "/") {
-		if active {
-			d.repo.Reset(chatID)
-		}
-
-		cmdName := strings.Split(text, " ")[0]
-
-		cmd, ok := d.commands[cmdName]
-		if !ok {
-			cmd = d.commands["unknown"]
-		}
-
-		return cmd.Execute(chatID, text)
+		return cmd.Execute(ctx, chatID, text)
 	}
 
 	if active {
 		switch session.State {
-
 		case domain.StateWaitingForURL:
-			return d.trackService.HandleURL(chatID, text), nil
+			return d.trackService.HandleURL(ctx, chatID, text), nil
 
 		case domain.StateWaitingForTags:
-			return d.trackService.HandleTags(chatID, text)
+			return d.trackService.HandleTags(ctx, chatID, text)
 		}
 	}
 
