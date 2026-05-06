@@ -2,18 +2,19 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
 
+	api "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/parsers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
 )
-
-const seconds = 30
 
 type Scheduler struct {
 	repo repositories.TrackingRepository
@@ -22,6 +23,12 @@ type Scheduler struct {
 	soClient     *clients.StackOverflowClient
 	botClient    clients.BotClient
 	log          *logger.Slog
+
+	interval         time.Duration
+	batchSize        int
+	workerCount      int
+	failureMu        sync.Mutex
+	reportedFailures map[int64]string
 }
 
 func NewScheduler(
@@ -30,13 +37,30 @@ func NewScheduler(
 	soClient *clients.StackOverflowClient,
 	botClient clients.BotClient,
 	log *logger.Slog,
+	interval time.Duration,
+	batchSize int,
+	workerCount int,
 ) *Scheduler {
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	if batchSize <= 0 {
+		batchSize = 100
+	}
+	if workerCount <= 0 {
+		workerCount = 1
+	}
+
 	return &Scheduler{
-		repo:         repo,
-		githubClient: githubClient,
-		soClient:     soClient,
-		botClient:    botClient,
-		log:          log,
+		repo:             repo,
+		githubClient:     githubClient,
+		soClient:         soClient,
+		botClient:        botClient,
+		log:              log,
+		interval:         interval,
+		batchSize:        batchSize,
+		workerCount:      workerCount,
+		reportedFailures: make(map[int64]string),
 	}
 }
 
@@ -48,7 +72,7 @@ func (s *Scheduler) Start() {
 	}
 
 	_, err = scheduler.NewJob(
-		gocron.DurationJob(seconds*time.Second),
+		gocron.DurationJob(s.interval),
 		gocron.NewTask(s.CheckLinks),
 	)
 	if err != nil {
@@ -56,7 +80,8 @@ func (s *Scheduler) Start() {
 		return
 	}
 
-	s.log.Info("scheduler started", "interval", "30s")
+	s.log.Info("scheduler started", "interval", s.interval.String())
+
 	scheduler.Start()
 }
 
@@ -65,18 +90,130 @@ func (s *Scheduler) CheckLinks() {
 
 	s.log.Info("checking links")
 
-	links, err := s.repo.GetAllTrackedLinks(ctx)
-	if err != nil {
-		s.log.Error("failed to get tracked links", "error", err)
+	var (
+		offset     = 0
+		totalLinks = 0
+	)
+
+	for {
+		links, err := s.repo.GetTrackedLinksBatch(ctx, s.batchSize, offset)
+		if err != nil {
+			s.log.Error("failed to get tracked links batch", "error", err, "offset", offset, "limit", s.batchSize)
+			return
+		}
+		if len(links) == 0 {
+			break
+		}
+
+		totalLinks += len(links)
+		s.processBatch(ctx, links)
+
+		offset += len(links)
+	}
+
+	s.log.Info("links check finished", "count", totalLinks)
+}
+
+func (s *Scheduler) processBatch(ctx context.Context, links []domain.Link) {
+	if len(links) == 0 {
 		return
 	}
 
-	s.log.Info("links found", "count", len(links))
+	workers := s.workerCount
+	if workers > len(links) {
+		workers = len(links)
+	}
+	if workers <= 0 {
+		workers = 1
+	}
 
-	for _, link := range links {
-		if err := s.processLink(ctx, link); err != nil {
-			s.log.Warn("link check failed", "url", link.URL, "error", err)
+	chunkSize := (len(links) + workers - 1) / workers
+
+	type failedLink struct {
+		link domain.Link
+		err  error
+	}
+
+	var (
+		wg     sync.WaitGroup
+		failMu sync.Mutex
+		failed = make([]failedLink, 0)
+	)
+
+	for i := 0; i < workers; i++ {
+		start := i * chunkSize
+		if start >= len(links) {
+			break
 		}
+		end := start + chunkSize
+		if end > len(links) {
+			end = len(links)
+		}
+
+		part := links[start:end]
+		wg.Add(1)
+		go func(part []domain.Link) {
+			defer wg.Done()
+
+			for _, link := range part {
+				if err := s.processLink(ctx, link); err != nil {
+					s.log.Warn("link check failed", "id", link.ID, "url", link.URL, "error", err)
+
+					failMu.Lock()
+					failed = append(failed, failedLink{link: link, err: err})
+					failMu.Unlock()
+
+					continue
+				}
+
+				s.clearReportedFailure(link.ID)
+			}
+		}(part)
+	}
+
+	wg.Wait()
+	for _, f := range failed {
+		s.reportLinkFailure(ctx, f.link, f.err)
+	}
+}
+
+func (s *Scheduler) reportLinkFailure(ctx context.Context, link domain.Link, err error) {
+	preview := MakeErrorPreview(err)
+
+	if !s.shouldReportFailure(link.ID, preview) {
+		return
+	}
+
+	subscribers, subErr := s.repo.FindSubscribers(ctx, link.ID)
+	if subErr != nil {
+		s.log.Warn("failed to find subscribers for failed link", "id", link.ID, "error", subErr)
+		s.clearReportedFailure(link.ID)
+		return
+	}
+
+	if len(subscribers) == 0 {
+		return
+	}
+
+	dto := api.LinkUpdate{
+		ID:        link.ID,
+		URL:       link.URL,
+		TgChatIDs: subscribers,
+		Type:      "processing_error",
+		Title:     "Ошибка обработки ссылки",
+		Username:  "scrapper",
+		CreatedAt: time.Now().UTC(),
+		Preview:   preview,
+		Description: fmt.Sprintf(
+			"Не удалось обработать ссылку: %s\nПричина: %s",
+			link.URL,
+			preview,
+		),
+	}
+
+	if sendErr := s.botClient.SendUpdate(ctx, dto); sendErr != nil {
+		s.log.Warn("failed to send link failure update", "id", link.ID, "error", sendErr)
+		s.clearReportedFailure(link.ID)
 	}
 }
 
@@ -86,43 +223,30 @@ func (s *Scheduler) processLink(ctx context.Context, link domain.Link) error {
 		return err
 	}
 
-	var newUpdatedAt time.Time
-
-	switch parsed.Source {
-	case "github":
-		newUpdatedAt, err = s.githubClient.GetRepoUpdatedAt(
-			ctx,
-			parsed.GithubOwner,
-			parsed.GithubRepo,
-		)
-
-	case "stackoverflow":
-		newUpdatedAt, err = s.soClient.GetQuestionUpdatedAt(
-			ctx,
-			parsed.StackOverflowQuestionID,
-		)
-
-	default:
-		return nil
-	}
-
+	updates, newUpdatedAt, err := s.fetchUpdates(ctx, link, parsed)
 	if err != nil {
 		return err
 	}
 
 	if link.LastUpdatedAt.IsZero() {
-		return s.repo.UpdateLastUpdated(ctx, link.URL, newUpdatedAt)
+		if newUpdatedAt.IsZero() {
+			newUpdatedAt = time.Now().UTC()
+		}
+
+		return s.repo.UpdateLastUpdated(ctx, link.ID, newUpdatedAt)
 	}
 
-	if !newUpdatedAt.After(link.LastUpdatedAt) {
+	if len(updates) == 0 {
 		return nil
 	}
 
-	if err = s.repo.UpdateLastUpdated(ctx, link.URL, newUpdatedAt); err != nil {
-		return err
+	if newUpdatedAt.After(link.LastUpdatedAt) {
+		if err := s.repo.UpdateLastUpdated(ctx, link.ID, newUpdatedAt); err != nil {
+			return err
+		}
 	}
 
-	subscribers, err := s.repo.FindSubscribers(ctx, link.URL)
+	subscribers, err := s.repo.FindSubscribers(ctx, link.ID)
 	if err != nil {
 		return err
 	}
@@ -131,10 +255,94 @@ func (s *Scheduler) processLink(ctx context.Context, link domain.Link) error {
 		return nil
 	}
 
-	update := domain.LinkUpdate{
-		URL:       link.URL,
-		TgChatIDs: subscribers,
+	for _, update := range updates {
+		dto := api.LinkUpdate{
+			ID:        update.LinkID,
+			URL:       update.URL,
+			TgChatIDs: subscribers,
+
+			Type:      string(update.Type),
+			Title:     update.Title,
+			Username:  update.Username,
+			CreatedAt: update.CreatedAt,
+			Preview:   update.Preview,
+
+			Description: formatUpdateDescription(update),
+		}
+
+		if err := s.botClient.SendUpdate(ctx, dto); err != nil {
+			return err
+		}
 	}
 
-	return s.botClient.SendUpdate(ctx, update)
+	return nil
+}
+
+func (s *Scheduler) fetchUpdates(
+	ctx context.Context,
+	link domain.Link,
+	parsed parsers.ParsedLink,
+) ([]domain.LinkUpdate, time.Time, error) {
+	switch parsed.Source {
+	case parsers.SourceGitHub:
+		return s.githubClient.GetNewIssuesAndPullRequests(
+			ctx,
+			parsed.GithubOwner,
+			parsed.GithubRepo,
+			link.URL,
+			link.ID,
+			link.LastUpdatedAt,
+		)
+
+	case parsers.SourceStackOverflow:
+		return s.soClient.GetNewAnswersAndComments(
+			ctx,
+			parsed.StackOverflowQuestionID,
+			link.URL,
+			link.ID,
+			link.LastUpdatedAt,
+		)
+
+	default:
+		return nil, time.Time{}, nil
+	}
+}
+
+func formatUpdateDescription(update domain.LinkUpdate) string {
+	return fmt.Sprintf(
+		"Обнаружено обновление по ссылке: %s\n\nТип: %s\nТема: %s\nАвтор: %s\nСоздано: %s\n\n%s",
+		update.URL,
+		update.Type,
+		update.Title,
+		update.Username,
+		update.CreatedAt.Format("2006-01-02 15:04:05"),
+		update.Preview,
+	)
+}
+
+func MakeErrorPreview(err error) string {
+	if err == nil {
+		return ""
+	}
+	return clients.MakePreview(err.Error())
+}
+
+func (s *Scheduler) shouldReportFailure(linkID int64, preview string) bool {
+	s.failureMu.Lock()
+	defer s.failureMu.Unlock()
+
+	oldPreview, exists := s.reportedFailures[linkID]
+	if exists && oldPreview == preview {
+		return false
+	}
+
+	s.reportedFailures[linkID] = preview
+	return true
+}
+
+func (s *Scheduler) clearReportedFailure(linkID int64) {
+	s.failureMu.Lock()
+	defer s.failureMu.Unlock()
+
+	delete(s.reportedFailures, linkID)
 }

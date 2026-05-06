@@ -29,7 +29,7 @@ type TagRepository interface {
 }
 
 type TrackingRepository interface {
-	FindSubscribers(ctx context.Context, url string) ([]int64, error)
-	GetAllTrackedLinks(ctx context.Context) ([]domain.Link, error)
-	UpdateLastUpdated(ctx context.Context, url string, t time.Time) error
+	FindSubscribers(ctx context.Context, linkID int64) ([]int64, error)
+	GetTrackedLinksBatch(ctx context.Context, limit, offset int) ([]domain.Link, error)
+	UpdateLastUpdated(ctx context.Context, linkID int64, t time.Time) error
 }

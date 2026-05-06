@@ -9,8 +9,8 @@ CREATE TABLE links (
 );
 
 CREATE TABLE subscriptions (
-    chat_id BIGINT REFERENCES chats(id) ON DELETE CASCADE,
-    link_id BIGINT REFERENCES links(id) ON DELETE CASCADE,
+    chat_id BIGINT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    link_id BIGINT NOT NULL REFERENCES links(id) ON DELETE CASCADE,
     PRIMARY KEY (chat_id, link_id)
 );
 
@@ -18,21 +18,24 @@ CREATE TABLE tags (
     id BIGSERIAL PRIMARY KEY,
     chat_id BIGINT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    UNIQUE (chat_id, name)
+
+    UNIQUE (chat_id, name),
+    UNIQUE (id, chat_id)
 );
 
 CREATE TABLE subscription_tags (
     chat_id BIGINT NOT NULL,
     link_id BIGINT NOT NULL,
     tag_id BIGINT NOT NULL,
+
     PRIMARY KEY (chat_id, link_id, tag_id),
 
     FOREIGN KEY (chat_id, link_id)
         REFERENCES subscriptions(chat_id, link_id)
         ON DELETE CASCADE,
 
-    FOREIGN KEY (tag_id)
-        REFERENCES tags(id)
+    FOREIGN KEY (tag_id, chat_id)
+        REFERENCES tags(id, chat_id)
         ON DELETE CASCADE
 );
 
