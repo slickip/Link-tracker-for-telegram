@@ -6,8 +6,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	api "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 	botpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/bot"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
 type GRPCBotClient struct {
@@ -27,7 +27,7 @@ func NewGRPCBotClient(addr string) (*GRPCBotClient, error) {
 	}, nil
 }
 
-func (c *GRPCBotClient) SendUpdate(ctx context.Context, update domain.LinkUpdate) error {
+func (c *GRPCBotClient) SendUpdate(ctx context.Context, update api.LinkUpdate) error {
 	_, err := c.client.SendUpdate(ctx, &botpb.LinkUpdateRequest{
 		Url:         update.URL,
 		Description: update.Description,

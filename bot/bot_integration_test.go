@@ -35,11 +35,14 @@ func setupBotRouter() http.Handler {
 }
 
 func TestBotUpdates_ValidRequest(t *testing.T) {
-	router := setupBotRouter()
+	bot := &mockBot{}
+	updatesHandler := handlers.NewUpdatesHandler(bot)
+	router := httpserver.NewBotRouter(updatesHandler)
 
 	body := map[string]any{
 		"url":       "https://github.com/golang/go",
 		"tgChatIds": []int64{1, 2},
+		"description": "test description",
 	}
 
 	data, err := json.Marshal(body)
@@ -55,6 +58,15 @@ func TestBotUpdates_ValidRequest(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK, got %d", w.Code)
+	}
+
+	if len(bot.messages) != 2 {
+		t.Fatalf("expected 2 messages sent, got %d", len(bot.messages))
+	}
+	for _, msg := range bot.messages {
+		if msg.text != "test description" {
+			t.Fatalf("expected message text=%q, got %q", "test description", msg.text)
+		}
 	}
 }
 

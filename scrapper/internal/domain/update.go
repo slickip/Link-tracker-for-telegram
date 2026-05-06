@@ -1,11 +1,22 @@
 package domain
 
+import "time"
+
+type UpdateType string
+
+const (
+	UpdateTypeGitHubIssue          UpdateType = "github_issue"
+	UpdateTypeGitHubPullRequest    UpdateType = "github_pull_request"
+	UpdateTypeStackOverflowAnswer  UpdateType = "stackoverflow_answer"
+	UpdateTypeStackOverflowComment UpdateType = "stackoverflow_comment"
+)
+
 type LinkUpdate struct {
-	ID int64 `json:"id"`
-
-	URL string `json:"url"`
-
-	Description string `json:"description"`
-
-	TgChatIDs []int64 `json:"tgChatIds"`
+	LinkID    int64
+	URL       string
+	Type      UpdateType
+	Title     string
+	Username  string
+	CreatedAt time.Time
+	Preview   string
 }

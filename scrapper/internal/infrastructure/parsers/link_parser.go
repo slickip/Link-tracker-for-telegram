@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	SourceGitHub        = "github"
+	SourceStackOverflow = "stackoverflow"
+)
+
 type ParsedLink struct {
 	RawURL string
 
@@ -25,23 +30,22 @@ func ParseLink(raw string) (ParsedLink, error) {
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return ParsedLink{}, fmt.Errorf("unsupported link")
+		return ParsedLink{}, fmt.Errorf("unsupported link scheme")
 	}
 
-	host := u.Host
+	host := strings.ToLower(u.Hostname())
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 
-	if strings.Contains(host, "github.com") && len(parts) >= 2 {
-
+	if isHost(host, "github.com") && len(parts) >= 2 {
 		return ParsedLink{
 			RawURL:      raw,
-			Source:      "github",
+			Source:      SourceGitHub,
 			GithubOwner: parts[0],
 			GithubRepo:  parts[1],
 		}, nil
 	}
 
-	if strings.Contains(host, "stackoverflow.com") &&
+	if isHost(host, "stackoverflow.com") &&
 		len(parts) >= 2 &&
 		parts[0] == "questions" {
 
@@ -52,10 +56,14 @@ func ParseLink(raw string) (ParsedLink, error) {
 
 		return ParsedLink{
 			RawURL:                  raw,
-			Source:                  "stackoverflow",
+			Source:                  SourceStackOverflow,
 			StackOverflowQuestionID: id,
 		}, nil
 	}
 
 	return ParsedLink{}, fmt.Errorf("unsupported link")
+}
+
+func isHost(actual string, expected string) bool {
+	return actual == expected || strings.HasSuffix(actual, "."+expected)
 }

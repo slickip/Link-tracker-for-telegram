@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"errors"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
@@ -53,16 +52,24 @@ func (r *ORMChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 		}
 
 		for _, tagName := range link.Tags {
-			var persistedTag models.TagModel
+			tagModel := models.TagModel{
+				ChatID: chatID,
+				Name:   tagName,
+			}
 
+			err = tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "chat_id"}, {Name: "name"}},
+				DoUpdates: clause.AssignmentColumns([]string{"name"}),
+			}).Create(&tagModel).Error
+			if err != nil {
+				return err
+			}
+
+			var persistedTag models.TagModel
 			err = tx.
 				Where("chat_id = ? AND name = ?", chatID, tagName).
 				First(&persistedTag).Error
-
 			if err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return pkg.ErrTagNotFound
-				}
 				return err
 			}
 

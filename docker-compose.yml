@@ -68,6 +68,8 @@ services:
       ACCESS_TYPE: SQL
       SCRAPPER_HTTP_ADDR: :8081
       SCRAPPER_GRPC_ADDR: :8083
+      BOT_HTTP_URL: http://bot:8080
+      BOT_GRPC_ADDR: bot:8082
     ports:
       - "8081:8081"
       - "8083:8083"

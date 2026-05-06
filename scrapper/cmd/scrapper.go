@@ -92,8 +92,19 @@ func main() {
 		botClient = clients.NewFallbackBotClient(httpBotClient, grpcBotClient, log)
 	}
 
-	githubClient := clients.NewGitHubClient()
-	soClient := clients.NewStackOverflowClient()
+	githubClient := clients.NewGitHubClient(clients.GitHubClientConfig{
+		BaseURL: cfg.GitHubBaseURL,
+		Token:   cfg.GitHubToken,
+		Timeout: cfg.ExternalAPITimeout,
+		PerPage: cfg.ExternalAPIPerPage,
+	})
+
+	soClient := clients.NewStackOverflowClient(clients.StackOverflowClientConfig{
+		BaseURL: cfg.StackOverflowBaseURL,
+		Site:    cfg.StackOverflowSite,
+		Timeout: cfg.ExternalAPITimeout,
+		PerPage: cfg.ExternalAPIPerPage,
+	})
 
 	scheduler := services.NewScheduler(
 		trackingRepo,
@@ -101,6 +112,9 @@ func main() {
 		soClient,
 		botClient,
 		log,
+		cfg.CheckInterval,
+		cfg.LinkBatchSize,
+		cfg.WorkerCount,
 	)
 	scheduler.Start()
 
