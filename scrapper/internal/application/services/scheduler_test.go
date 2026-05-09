@@ -71,9 +71,7 @@ func (r *fakeTrackingRepository) GetTrackedLinksBatch(ctx context.Context, limit
 		end = len(all)
 	}
 	result := make([]domain.Link, 0, end-offset)
-	for _, link := range all[offset:end] {
-		result = append(result, link)
-	}
+	result = append(result, all[offset:end]...)
 	return result, nil
 }
 
