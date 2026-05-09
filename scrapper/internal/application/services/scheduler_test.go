@@ -282,15 +282,18 @@ func TestScheduler_StackOverflowAnswer_MessageContainsRequiredFields_AndPreviewT
 	stackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		switch {
-		case r.URL.Path == "/questions/12345":
+		switch r.URL.Path {
+		case "/questions/12345":
 			_, _ = w.Write([]byte(`{"items":[{"title":"SO title","last_activity_date":0}]}`))
-		case r.URL.Path == "/questions/12345/answers":
+
+		case "/questions/12345/answers":
 			_, _ = w.Write([]byte(
 				`{"items":[{"creation_date":` + fmt.Sprintf("%d", newCreatedAt.Unix()) + `,"body":"` + string(longBody) + `","owner":{"display_name":"so-user"}}]}`,
 			))
-		case r.URL.Path == "/questions/12345/comments":
+
+		case "/questions/12345/comments":
 			_, _ = w.Write([]byte(`{"items":[]}`))
+
 		default:
 			http.Error(w, "not found", http.StatusNotFound)
 		}
