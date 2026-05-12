@@ -36,41 +36,89 @@ const (
 	AccessTypeORM AccessType = "ORM"
 )
 
+const (
+	envBotHTTPURL       = "BOT_HTTP_URL"
+	envBotGRPCAddr      = "BOT_GRPC_ADDR"
+	envScrapperHTTPAddr = "SCRAPPER_HTTP_ADDR"
+	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
+	envDatabaseURL      = "DATABASE_URL"
+	envAccessType       = "ACCESS_TYPE"
+
+	envCheckInterval = "CHECK_INTERVAL"
+	envLinkBatchSize = "LINK_BATCH_SIZE"
+	envWorkerCount   = "WORKER_COUNT"
+
+	envGitHubBaseURL        = "GITHUB_BASE_URL"
+	envGitHubToken          = "GITHUB_TOKEN"
+	envStackOverflowBaseURL = "STACKOVERFLOW_BASE_URL"
+	envStackOverflowSite    = "STACKOVERFLOW_SITE"
+	envExternalAPITimeout   = "EXTERNAL_API_TIMEOUT"
+	envExternalAPIPerPage   = "EXTERNAL_API_PER_PAGE"
+)
+
+const (
+	defaultBotHTTPURL       = "http://localhost:8080"
+	defaultBotGRPCAddr      = "localhost:8082"
+	defaultScrapperHTTPAddr = ":8081"
+	defaultScrapperGRPCAddr = ":8083"
+	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
+	defaultAccessType       = string(AccessTypeSQL)
+
+	defaultCheckInterval = 30 * time.Second
+	defaultLinkBatchSize = 100
+	defaultWorkerCount   = 4
+
+	defaultGitHubBaseURL        = "https://api.github.com"
+	defaultGitHubToken          = ""
+	defaultStackOverflowBaseURL = "https://api.stackexchange.com/2.3"
+	defaultStackOverflowSite    = "stackoverflow"
+	defaultExternalAPITimeout   = 10 * time.Second
+	defaultExternalAPIPerPage   = 100
+)
+
+const (
+	minLinkBatchSize      = 50
+	maxLinkBatchSize      = 500
+	minWorkerCount        = 1
+	minExternalAPIPerPage = 1
+)
+
 func MustLoad() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found")
 	}
 
-	botHTTPURL := getEnv("BOT_HTTP_URL", "http://localhost:8080")
-	botGRPCAddr := getEnv("BOT_GRPC_ADDR", "localhost:8082")
-	scrapperHTTPAddr := getEnv("SCRAPPER_HTTP_ADDR", ":8081")
-	scrapperGRPCAddr := getEnv("SCRAPPER_GRPC_ADDR", ":8083")
+	botHTTPURL := getEnv(envBotHTTPURL, defaultBotHTTPURL)
+	botGRPCAddr := getEnv(envBotGRPCAddr, defaultBotGRPCAddr)
+	scrapperHTTPAddr := getEnv(envScrapperHTTPAddr, defaultScrapperHTTPAddr)
+	scrapperGRPCAddr := getEnv(envScrapperGRPCAddr, defaultScrapperGRPCAddr)
+	databaseURL := getEnv(envDatabaseURL, defaultDatabaseURL)
 
-	databaseURL := getEnv(
-		"DATABASE_URL",
-		"postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable",
-	)
-
-	accessTypeStr := getEnv("ACCESS_TYPE", "SQL")
+	accessTypeStr := getEnv(envAccessType, defaultAccessType)
 	accessType := AccessType(accessTypeStr)
 
 	if accessType != AccessTypeSQL && accessType != AccessTypeORM {
-		log.Fatalf("invalid ACCESS_TYPE: %s", accessTypeStr)
+		log.Fatalf("invalid %s: %s", envAccessType, accessTypeStr)
 	}
 
-	linkBatchSize := getEnvInt("LINK_BATCH_SIZE", 100)
-	if linkBatchSize < 50 || linkBatchSize > 500 {
-		log.Fatalf("LINK_BATCH_SIZE must be between 50 and 500")
+	linkBatchSize := getEnvInt(envLinkBatchSize, defaultLinkBatchSize)
+	if linkBatchSize < minLinkBatchSize || linkBatchSize > maxLinkBatchSize {
+		log.Fatalf(
+			"%s must be between %d and %d",
+			envLinkBatchSize,
+			minLinkBatchSize,
+			maxLinkBatchSize,
+		)
 	}
 
-	workerCount := getEnvInt("WORKER_COUNT", 4)
-	if workerCount <= 0 {
-		log.Fatalf("WORKER_COUNT must be positive")
+	workerCount := getEnvInt(envWorkerCount, defaultWorkerCount)
+	if workerCount < minWorkerCount {
+		log.Fatalf("%s must be at least %d", envWorkerCount, minWorkerCount)
 	}
 
-	externalAPIPerPage := getEnvInt("EXTERNAL_API_PER_PAGE", 100)
-	if externalAPIPerPage <= 0 {
-		log.Fatalf("EXTERNAL_API_PER_PAGE must be positive")
+	externalAPIPerPage := getEnvInt(envExternalAPIPerPage, defaultExternalAPIPerPage)
+	if externalAPIPerPage < minExternalAPIPerPage {
+		log.Fatalf("%s must be at least %d", envExternalAPIPerPage, minExternalAPIPerPage)
 	}
 
 	return &Config{
@@ -81,15 +129,15 @@ func MustLoad() *Config {
 		DatabaseURL:      databaseURL,
 		AccessType:       accessType,
 
-		CheckInterval: getEnvDuration("CHECK_INTERVAL", 30*time.Second),
+		CheckInterval: getEnvDuration(envCheckInterval, defaultCheckInterval),
 		LinkBatchSize: linkBatchSize,
 		WorkerCount:   workerCount,
 
-		GitHubBaseURL:        getEnv("GITHUB_BASE_URL", "https://api.github.com"),
-		GitHubToken:          os.Getenv("GITHUB_TOKEN"),
-		StackOverflowBaseURL: getEnv("STACKOVERFLOW_BASE_URL", "https://api.stackexchange.com/2.3"),
-		StackOverflowSite:    getEnv("STACKOVERFLOW_SITE", "stackoverflow"),
-		ExternalAPITimeout:   getEnvDuration("EXTERNAL_API_TIMEOUT", 10*time.Second),
+		GitHubBaseURL:        getEnv(envGitHubBaseURL, defaultGitHubBaseURL),
+		GitHubToken:          getEnv(envGitHubToken, defaultGitHubToken),
+		StackOverflowBaseURL: getEnv(envStackOverflowBaseURL, defaultStackOverflowBaseURL),
+		StackOverflowSite:    getEnv(envStackOverflowSite, defaultStackOverflowSite),
+		ExternalAPITimeout:   getEnvDuration(envExternalAPITimeout, defaultExternalAPITimeout),
 		ExternalAPIPerPage:   externalAPIPerPage,
 	}
 }

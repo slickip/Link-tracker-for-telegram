@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	api "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
 
 type MessageSender interface {

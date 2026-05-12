@@ -8,12 +8,24 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 
-	api "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/parsers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+)
+
+const (
+	defaultSchedulerInterval    = 30 * time.Second
+	defaultSchedulerBatchSize   = 100
+	defaultSchedulerWorkerCount = 1
+
+	updateDescriptionTimeFormat = "2006-01-02 15:04:05"
+
+	processingErrorType     = "processing_error"
+	processingErrorTitle    = "Ошибка обработки ссылки"
+	processingErrorUsername = "scrapper"
 )
 
 type Scheduler struct {
@@ -42,13 +54,13 @@ func NewScheduler(
 	workerCount int,
 ) *Scheduler {
 	if interval <= 0 {
-		interval = 30 * time.Second
+		interval = defaultSchedulerInterval
 	}
 	if batchSize <= 0 {
-		batchSize = 100
+		batchSize = defaultSchedulerBatchSize
 	}
 	if workerCount <= 0 {
-		workerCount = 1
+		workerCount = defaultSchedulerWorkerCount
 	}
 
 	return &Scheduler{
@@ -124,7 +136,7 @@ func (s *Scheduler) processBatch(ctx context.Context, links []domain.Link) {
 		workers = len(links)
 	}
 	if workers <= 0 {
-		workers = 1
+		workers = defaultSchedulerWorkerCount
 	}
 
 	chunkSize := (len(links) + workers - 1) / workers
@@ -199,9 +211,9 @@ func (s *Scheduler) reportLinkFailure(ctx context.Context, link domain.Link, err
 		ID:        link.ID,
 		URL:       link.URL,
 		TgChatIDs: subscribers,
-		Type:      "processing_error",
-		Title:     "Ошибка обработки ссылки",
-		Username:  "scrapper",
+		Type:      processingErrorType,
+		Title:     processingErrorTitle,
+		Username:  processingErrorUsername,
 		CreatedAt: time.Now().UTC(),
 		Preview:   preview,
 		Description: fmt.Sprintf(
@@ -315,7 +327,7 @@ func formatUpdateDescription(update domain.LinkUpdate) string {
 		update.Type,
 		update.Title,
 		update.Username,
-		update.CreatedAt.Format("2006-01-02 15:04:05"),
+		update.CreatedAt.Format(updateDescriptionTimeFormat),
 		update.Preview,
 	)
 }
