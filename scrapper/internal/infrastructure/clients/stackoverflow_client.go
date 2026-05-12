@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -182,7 +183,7 @@ func (c *StackOverflowClient) getQuestionTitle(
 	}
 
 	if len(result.Items) == 0 {
-		return "", fmt.Errorf(stackOverflowQuestionNotFoundError)
+		return "", errors.New(stackOverflowQuestionNotFoundError)
 	}
 
 	return cleanupText(result.Items[0].Title), nil
