@@ -13,7 +13,43 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
-const defaultStackOverflowBaseURL = "https://api.stackexchange.com/2.3"
+const (
+	defaultStackOverflowBaseURL = "https://api.stackexchange.com/2.3"
+	defaultStackOverflowSite    = "stackoverflow"
+	defaultStackOverflowTimeout = 10 * time.Second
+	defaultStackOverflowPerPage = 100
+)
+
+const (
+	stackOverflowQuestionPathTemplate = "/questions/%d"
+	stackOverflowAnswersPathTemplate  = "/questions/%d/answers"
+	stackOverflowCommentsPathTemplate = "/questions/%d/comments"
+)
+
+const (
+	queryParamSite     = "site"
+	queryParamFilter   = "filter"
+	queryParamSort     = "sort"
+	queryParamOrder    = "order"
+	queryParamPageSize = "pagesize"
+)
+
+const (
+	stackOverflowFilterDefault  = "default"
+	stackOverflowFilterWithBody = "withbody"
+	stackOverflowSortCreation   = "creation"
+	stackOverflowOrderDesc      = "desc"
+)
+
+const (
+	userAgentHeader = "User-Agent"
+	userAgentValue  = "link-tracker"
+)
+
+const (
+	stackOverflowQuestionNotFoundError = "stackoverflow question not found"
+	stackOverflowStatusErrorFormat     = "stackoverflow status %d"
+)
 
 type StackOverflowClient struct {
 	client  *http.Client
@@ -65,17 +101,17 @@ func NewStackOverflowClient(cfg StackOverflowClientConfig) *StackOverflowClient 
 
 	site := cfg.Site
 	if site == "" {
-		site = "stackoverflow"
+		site = defaultStackOverflowSite
 	}
 
 	timeout := cfg.Timeout
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = defaultStackOverflowTimeout
 	}
 
 	perPage := cfg.PerPage
 	if perPage <= 0 {
-		perPage = 100
+		perPage = defaultStackOverflowPerPage
 	}
 
 	return &StackOverflowClient{
@@ -130,10 +166,10 @@ func (c *StackOverflowClient) getQuestionTitle(
 	questionID int64,
 ) (string, error) {
 	endpoint, err := c.buildURL(
-		fmt.Sprintf("/questions/%d", questionID),
+		fmt.Sprintf(stackOverflowQuestionPathTemplate, questionID),
 		map[string]string{
-			"site":   c.site,
-			"filter": "default",
+			queryParamSite:   c.site,
+			queryParamFilter: stackOverflowFilterDefault,
 		},
 	)
 	if err != nil {
@@ -146,7 +182,7 @@ func (c *StackOverflowClient) getQuestionTitle(
 	}
 
 	if len(result.Items) == 0 {
-		return "", fmt.Errorf("stackoverflow question not found")
+		return "", fmt.Errorf(stackOverflowQuestionNotFoundError)
 	}
 
 	return cleanupText(result.Items[0].Title), nil
@@ -161,13 +197,13 @@ func (c *StackOverflowClient) getNewAnswers(
 	since time.Time,
 ) ([]domain.LinkUpdate, time.Time, error) {
 	endpoint, err := c.buildURL(
-		fmt.Sprintf("/questions/%d/answers", questionID),
+		fmt.Sprintf(stackOverflowAnswersPathTemplate, questionID),
 		map[string]string{
-			"site":     c.site,
-			"sort":     "creation",
-			"order":    "desc",
-			"pagesize": strconv.Itoa(c.perPage),
-			"filter":   "withbody",
+			queryParamSite:     c.site,
+			queryParamSort:     stackOverflowSortCreation,
+			queryParamOrder:    stackOverflowOrderDesc,
+			queryParamPageSize: strconv.Itoa(c.perPage),
+			queryParamFilter:   stackOverflowFilterWithBody,
 		},
 	)
 	if err != nil {
@@ -216,13 +252,13 @@ func (c *StackOverflowClient) getNewComments(
 	since time.Time,
 ) ([]domain.LinkUpdate, time.Time, error) {
 	endpoint, err := c.buildURL(
-		fmt.Sprintf("/questions/%d/comments", questionID),
+		fmt.Sprintf(stackOverflowCommentsPathTemplate, questionID),
 		map[string]string{
-			"site":     c.site,
-			"sort":     "creation",
-			"order":    "desc",
-			"pagesize": strconv.Itoa(c.perPage),
-			"filter":   "withbody",
+			queryParamSite:     c.site,
+			queryParamSort:     stackOverflowSortCreation,
+			queryParamOrder:    stackOverflowOrderDesc,
+			queryParamPageSize: strconv.Itoa(c.perPage),
+			queryParamFilter:   stackOverflowFilterWithBody,
 		},
 	)
 	if err != nil {
@@ -284,7 +320,7 @@ func (c *StackOverflowClient) getJSON(ctx context.Context, endpoint string, targ
 		return err
 	}
 
-	req.Header.Set("User-Agent", "link-tracker")
+	req.Header.Set(userAgentHeader, userAgentValue)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -295,7 +331,7 @@ func (c *StackOverflowClient) getJSON(ctx context.Context, endpoint string, targ
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("stackoverflow status %d", resp.StatusCode)
+		return fmt.Errorf(stackOverflowStatusErrorFormat, resp.StatusCode)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {

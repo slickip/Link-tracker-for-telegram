@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	api "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
 
 type BotClient interface {

@@ -10,8 +10,7 @@ import (
 type GitHubAPI interface {
 	GetNewIssuesAndPullRequests(
 		ctx context.Context,
-		owner string,
-		repo string,
+		owner, repo string,
 		since time.Time,
 	) ([]domain.LinkUpdate, error)
 }

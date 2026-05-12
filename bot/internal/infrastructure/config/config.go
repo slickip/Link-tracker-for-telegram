@@ -24,45 +24,44 @@ const (
 	AccessTypeORM AccessType = "ORM"
 )
 
+const (
+	envTelegramToken    = "TELEGRAM_TOKEN"
+	envScrapperURL      = "SCRAPPER_URL"
+	envBotHTTPAddr      = "BOT_HTTP_ADDR"
+	envBotGRPCAddr      = "BOT_GRPC_ADDR"
+	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
+	envDatabaseURL      = "DATABASE_URL"
+	envAccessType       = "ACCESS_TYPE"
+)
+
+const (
+	defaultBotHTTPAddr      = ":8080"
+	defaultBotGRPCAddr      = "localhost:8082"
+	defaultScrapperGRPCAddr = "localhost:8083"
+	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
+	defaultAccessType       = string(AccessTypeSQL)
+)
+
 func MustLoad() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found")
 	}
 
-	token := os.Getenv("TELEGRAM_TOKEN")
-	if token == "" {
-		log.Fatal("TELEGRAM_TOKEN is not set")
+	token := getRequiredEnv(envTelegramToken)
+	scrapperURL := getRequiredEnv(envScrapperURL)
+
+	botHTTPAddr := getEnv(envBotHTTPAddr, defaultBotHTTPAddr)
+	botGRPCAddr := getEnv(envBotGRPCAddr, defaultBotGRPCAddr)
+	scrapperGRPCAddr := getEnv(envScrapperGRPCAddr, defaultScrapperGRPCAddr)
+	databaseURL := getEnv(envDatabaseURL, defaultDatabaseURL)
+
+	accessTypeStr := getEnv(envAccessType, defaultAccessType)
+	accessType := AccessType(accessTypeStr)
+
+	if accessType != AccessTypeSQL && accessType != AccessTypeORM {
+		log.Fatalf("invalid %s: %s", envAccessType, accessTypeStr)
 	}
 
-	scrapperURL := os.Getenv("SCRAPPER_URL")
-	if scrapperURL == "" {
-		log.Fatal("SCRAPPER_URL is not set")
-	}
-
-	botHTTPAddr := os.Getenv("BOT_HTTP_ADDR")
-	if botHTTPAddr == "" {
-		botHTTPAddr = ":8080"
-	}
-
-	botGRPCAddr := os.Getenv("BOT_GRPC_ADDR")
-	if botGRPCAddr == "" {
-		botGRPCAddr = "localhost:8082"
-	}
-
-	scrapperGRPCAddr := os.Getenv("SCRAPPER_GRPC_ADDR")
-	if scrapperGRPCAddr == "" {
-		scrapperGRPCAddr = "localhost:8083"
-	}
-
-	accessType := os.Getenv("ACCESS_TYPE")
-	if accessType == "" {
-		accessType = "SQL"
-	}
-
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
-	}
 	return &Config{
 		TelegramToken:    token,
 		ScrapperURL:      scrapperURL,
@@ -70,6 +69,24 @@ func MustLoad() *Config {
 		BotGRPCAddr:      botGRPCAddr,
 		ScrapperGRPCAddr: scrapperGRPCAddr,
 		DatabaseURL:      databaseURL,
-		AccessType:       AccessType(accessType),
+		AccessType:       accessType,
 	}
+}
+
+func getRequiredEnv(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalf("%s is not set", key)
+	}
+
+	return value
+}
+
+func getEnv(key string, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	return value
 }
