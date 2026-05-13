@@ -15,6 +15,7 @@ type Config struct {
 	ScrapperGRPCAddr string
 	DatabaseURL      string
 	AccessType       AccessType
+	Kafka            KafkaConfig
 }
 
 type AccessType string
@@ -24,6 +25,13 @@ const (
 	AccessTypeORM AccessType = "ORM"
 )
 
+type KafkaConfig struct {
+	BootstrapServers string
+	LinkUpdatesTopic string
+	ConsumerGroup    string
+	ClientID         string
+}
+
 const (
 	envTelegramToken    = "TELEGRAM_TOKEN"
 	envScrapperURL      = "SCRAPPER_URL"
@@ -32,6 +40,11 @@ const (
 	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
 	envDatabaseURL      = "DATABASE_URL"
 	envAccessType       = "ACCESS_TYPE"
+
+	envKafkaBootstrapServers = "KAFKA_BOOTSTRAP_SERVERS"
+	envKafkaLinkUpdatesTopic = "KAFKA_LINK_UPDATES_TOPIC"
+	envKafkaConsumerGroup    = "KAFKA_CONSUMER_GROUP"
+	envKafkaClientID         = "KAFKA_CLIENT_ID"
 )
 
 const (
@@ -40,6 +53,11 @@ const (
 	defaultScrapperGRPCAddr = "localhost:8083"
 	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
 	defaultAccessType       = string(AccessTypeSQL)
+
+	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
+	defaultKafkaLinkUpdatesTopic = "link-updates"
+	defaultKafkaConsumerGroup    = "bot-link-updates"
+	defaultKafkaClientID         = "bot"
 )
 
 func MustLoad() *Config {
@@ -70,6 +88,12 @@ func MustLoad() *Config {
 		ScrapperGRPCAddr: scrapperGRPCAddr,
 		DatabaseURL:      databaseURL,
 		AccessType:       accessType,
+		Kafka: KafkaConfig{
+			BootstrapServers: getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
+			LinkUpdatesTopic: getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
+			ConsumerGroup:    getEnv(envKafkaConsumerGroup, defaultKafkaConsumerGroup),
+			ClientID:         getEnv(envKafkaClientID, defaultKafkaClientID),
+		},
 	}
 }
 
