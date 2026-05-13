@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/kafka"
 	dbpkgorm "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/orm/database"
 	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/orm/repositories"
 	dbpkgsql "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/sql/database"
@@ -95,10 +97,31 @@ func main() {
 		trackRepo,
 	)
 
-	updatesHandler := handlers.NewUpdatesHandler(bot)
+	updateService := services.NewUpdateService(bot)
+
+	updatesHandler := handlers.NewUpdatesHandler(updateService)
 	router := httpserver.NewBotRouter(updatesHandler)
 
-	g, _ := errgroup.WithContext(context.Background())
+	kafkaConsumer, err := kafka.NewLinkUpdateConsumer(
+		kafka.LinkUpdateConsumerConfig{
+			BootstrapServers: cfg.Kafka.BootstrapServers,
+			Topic:            cfg.Kafka.LinkUpdatesTopic,
+			ConsumerGroup:    cfg.Kafka.ConsumerGroup,
+			ClientID:         cfg.Kafka.ClientID,
+		},
+		updateService,
+	)
+	if err != nil {
+		log.Error("failed to create kafka link update consumer", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := kafkaConsumer.Close(); err != nil {
+			log.Warn("failed to close kafka consumer", "error", err)
+		}
+	}()
+
+	g, ctx := errgroup.WithContext(context.Background())
 
 	g.Go(func() error {
 		addr := cfg.BotHTTPAddr
@@ -121,6 +144,23 @@ func main() {
 		log.Info("bot gRPC server starting", "addr", cfg.BotGRPCAddr)
 
 		return grpcSrv.Serve(lis)
+	})
+
+	g.Go(func() error {
+		log.Info(
+			"kafka link update consumer starting",
+			"topic",
+			cfg.Kafka.LinkUpdatesTopic,
+			"group",
+			cfg.Kafka.ConsumerGroup,
+		)
+
+		err := kafkaConsumer.Start(ctx)
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+
+		return err
 	})
 
 	g.Go(func() error {

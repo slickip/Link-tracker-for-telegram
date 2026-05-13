@@ -17,6 +17,9 @@ type Config struct {
 	DatabaseURL      string
 	AccessType       AccessType
 
+	NotificationTransport NotificationTransport
+	Kafka                 KafkaConfig
+
 	CheckInterval time.Duration
 	LinkBatchSize int
 	WorkerCount   int
@@ -54,6 +57,12 @@ const (
 	envStackOverflowSite    = "STACKOVERFLOW_SITE"
 	envExternalAPITimeout   = "EXTERNAL_API_TIMEOUT"
 	envExternalAPIPerPage   = "EXTERNAL_API_PER_PAGE"
+
+	envNotificationTransport = "NOTIFICATION_TRANSPORT"
+
+	envKafkaBootstrapServers = "KAFKA_BOOTSTRAP_SERVERS"
+	envKafkaLinkUpdatesTopic = "KAFKA_LINK_UPDATES_TOPIC"
+	envKafkaClientID         = "KAFKA_CLIENT_ID"
 )
 
 const (
@@ -74,6 +83,12 @@ const (
 	defaultStackOverflowSite    = "stackoverflow"
 	defaultExternalAPITimeout   = 10 * time.Second
 	defaultExternalAPIPerPage   = 100
+
+	defaultNotificationTransport = string(NotificationTransportKafka)
+
+	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
+	defaultKafkaLinkUpdatesTopic = "link-updates"
+	defaultKafkaClientID         = "scrapper"
 )
 
 const (
@@ -82,6 +97,20 @@ const (
 	minWorkerCount        = 1
 	minExternalAPIPerPage = 1
 )
+
+type NotificationTransport string
+
+const (
+	NotificationTransportKafka NotificationTransport = "KAFKA"
+	NotificationTransportHTTP  NotificationTransport = "HTTP"
+	NotificationTransportGRPC  NotificationTransport = "GRPC"
+)
+
+type KafkaConfig struct {
+	BootstrapServers string
+	LinkUpdatesTopic string
+	ClientID         string
+}
 
 func MustLoad() *Config {
 	if err := godotenv.Load(); err != nil {
@@ -99,6 +128,21 @@ func MustLoad() *Config {
 
 	if accessType != AccessTypeSQL && accessType != AccessTypeORM {
 		log.Fatalf("invalid %s: %s", envAccessType, accessTypeStr)
+	}
+
+	notificationTransportStr := getEnv(envNotificationTransport, defaultNotificationTransport)
+	notificationTransport := NotificationTransport(notificationTransportStr)
+
+	if notificationTransport != NotificationTransportKafka &&
+		notificationTransport != NotificationTransportHTTP &&
+		notificationTransport != NotificationTransportGRPC {
+		log.Fatalf("invalid %s: %s", envNotificationTransport, notificationTransportStr)
+	}
+
+	kafkaConfig := KafkaConfig{
+		BootstrapServers: getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
+		LinkUpdatesTopic: getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
+		ClientID:         getEnv(envKafkaClientID, defaultKafkaClientID),
 	}
 
 	linkBatchSize := getEnvInt(envLinkBatchSize, defaultLinkBatchSize)
@@ -128,6 +172,9 @@ func MustLoad() *Config {
 		ScrapperGRPCAddr: scrapperGRPCAddr,
 		DatabaseURL:      databaseURL,
 		AccessType:       accessType,
+
+		NotificationTransport: notificationTransport,
+		Kafka:                 kafkaConfig,
 
 		CheckInterval: getEnvDuration(envCheckInterval, defaultCheckInterval),
 		LinkBatchSize: linkBatchSize,

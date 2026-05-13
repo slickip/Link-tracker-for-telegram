@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
 )
@@ -30,18 +31,20 @@ func (m *mockBot) SendMessage(chatID int64, text string) error {
 
 func setupBotRouter() http.Handler {
 	bot := &mockBot{}
-	updatesHandler := handlers.NewUpdatesHandler(bot)
+	updateService := services.NewUpdateService(bot)
+	updatesHandler := handlers.NewUpdatesHandler(updateService)
 	return httpserver.NewBotRouter(updatesHandler)
 }
 
 func TestBotUpdates_ValidRequest(t *testing.T) {
 	bot := &mockBot{}
-	updatesHandler := handlers.NewUpdatesHandler(bot)
+	updateService := services.NewUpdateService(bot)
+	updatesHandler := handlers.NewUpdatesHandler(updateService)
 	router := httpserver.NewBotRouter(updatesHandler)
 
 	body := map[string]any{
-		"url":       "https://github.com/golang/go",
-		"tgChatIds": []int64{1, 2},
+		"url":         "https://github.com/golang/go",
+		"tgChatIds":   []int64{1, 2},
 		"description": "test description",
 	}
 
