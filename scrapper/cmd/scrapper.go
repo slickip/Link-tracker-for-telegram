@@ -95,9 +95,12 @@ func main() {
 	case config.NotificationTransportKafka:
 		producer, err := kafka.NewConfluentLinkUpdateProducer(
 			kafka.LinkUpdateProducerConfig{
-				BootstrapServers: cfg.Kafka.BootstrapServers,
-				Topic:            cfg.Kafka.LinkUpdatesTopic,
-				ClientID:         cfg.Kafka.ClientID,
+				BootstrapServers:    cfg.Kafka.BootstrapServers,
+				Topic:               cfg.Kafka.LinkUpdatesTopic,
+				ClientID:            cfg.Kafka.ClientID,
+				SchemaRegistryURL:   cfg.Kafka.SchemaRegistryURL,
+				LinkUpdatesSubject:  cfg.Kafka.LinkUpdatesSubject,
+				SerializationFormat: cfg.Kafka.SerializationFormat,
 			},
 		)
 		if err != nil {

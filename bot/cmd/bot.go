@@ -104,12 +104,15 @@ func main() {
 
 	kafkaConsumer, err := kafka.NewLinkUpdateConsumer(
 		kafka.LinkUpdateConsumerConfig{
-			BootstrapServers: cfg.Kafka.BootstrapServers,
-			Topic:            cfg.Kafka.LinkUpdatesTopic,
-			DLQTopic:         cfg.Kafka.DLQTopic,
-			ConsumerGroup:    cfg.Kafka.ConsumerGroup,
-			ClientID:         cfg.Kafka.ClientID,
-			MaxRetries:       cfg.Kafka.MaxRetries,
+			BootstrapServers:    cfg.Kafka.BootstrapServers,
+			Topic:               cfg.Kafka.LinkUpdatesTopic,
+			DLQTopic:            cfg.Kafka.DLQTopic,
+			ConsumerGroup:       cfg.Kafka.ConsumerGroup,
+			ClientID:            cfg.Kafka.ClientID,
+			MaxRetries:          cfg.Kafka.MaxRetries,
+			SchemaRegistryURL:   cfg.Kafka.SchemaRegistryURL,
+			LinkUpdatesSubject:  cfg.Kafka.LinkUpdatesSubject,
+			SerializationFormat: cfg.Kafka.SerializationFormat,
 		},
 		updateService,
 	)

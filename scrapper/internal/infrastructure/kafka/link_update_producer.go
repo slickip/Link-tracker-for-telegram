@@ -11,6 +11,7 @@ import (
 	confluent "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/avrocodec"
 )
 
 const (
@@ -38,14 +39,18 @@ type RawMessageProducer interface {
 }
 
 type LinkUpdateProducerConfig struct {
-	BootstrapServers string
-	Topic            string
-	ClientID         string
+	BootstrapServers    string
+	Topic               string
+	ClientID            string
+	SchemaRegistryURL   string
+	LinkUpdatesSubject  string
+	SerializationFormat string
 }
 
 type ConfluentLinkUpdateProducer struct {
 	producer *confluent.Producer
 	topic    string
+	codec    *avrocodec.LinkUpdateCodec
 }
 
 var _ LinkUpdateProducer = (*ConfluentLinkUpdateProducer)(nil)
@@ -74,9 +79,29 @@ func NewConfluentLinkUpdateProducer(
 		return nil, fmt.Errorf("create kafka producer: %w", err)
 	}
 
+	var codec *avrocodec.LinkUpdateCodec
+
+	if strings.EqualFold(cfg.SerializationFormat, "AVRO") {
+		subject := cfg.LinkUpdatesSubject
+		if subject == "" {
+			subject = cfg.Topic + "-value"
+		}
+
+		codec, err = avrocodec.NewLinkUpdateCodec(
+			context.Background(),
+			cfg.SchemaRegistryURL,
+			subject,
+		)
+		if err != nil {
+			producer.Close()
+			return nil, err
+		}
+	}
+
 	return &ConfluentLinkUpdateProducer{
 		producer: producer,
 		topic:    topic,
+		codec:    codec,
 	}, nil
 }
 
@@ -84,17 +109,49 @@ func (p *ConfluentLinkUpdateProducer) Produce(
 	ctx context.Context,
 	update api.LinkUpdate,
 ) error {
-	body, err := json.Marshal(update)
+	var (
+		body []byte
+		err  error
+	)
+
+	if p.codec != nil {
+		body, err = p.codec.Serialize(update)
+	} else {
+		body, err = json.Marshal(update)
+	}
 	if err != nil {
 		return err
 	}
 
 	key := strconv.FormatInt(update.ID, decimalBase)
 
-	return p.ProduceRaw(ctx, p.topic, key, body)
+	return p.produceBytes(ctx, p.topic, key, body)
 }
 
 func (p *ConfluentLinkUpdateProducer) ProduceRaw(
+	ctx context.Context,
+	topic string,
+	key string,
+	payload []byte,
+) error {
+	if p.codec != nil {
+		var update api.LinkUpdate
+		if err := json.Unmarshal(payload, &update); err != nil {
+			return err
+		}
+
+		avroPayload, err := p.codec.Serialize(update)
+		if err != nil {
+			return err
+		}
+
+		return p.produceBytes(ctx, topic, key, avroPayload)
+	}
+
+	return p.produceBytes(ctx, topic, key, payload)
+}
+
+func (p *ConfluentLinkUpdateProducer) produceBytes(
 	ctx context.Context,
 	topic string,
 	key string,
