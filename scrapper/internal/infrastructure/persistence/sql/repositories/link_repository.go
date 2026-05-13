@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -59,17 +58,13 @@ func (r *SqlChatLinkRepository) Add(ctx context.Context, chatID int64, link doma
 
 	for _, tag := range link.Tags {
 		var tagID int64
-
 		err = tx.QueryRowContext(ctx, `
-			SELECT id
-			FROM tags
-			WHERE chat_id = $1 AND name = $2
+			INSERT INTO tags (chat_id, name)
+			VALUES ($1, $2)
+			ON CONFLICT (chat_id, name) DO UPDATE SET name = EXCLUDED.name
+			RETURNING id
 		`, chatID, tag).Scan(&tagID)
-
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return pkg.ErrTagNotFound
-			}
 			return err
 		}
 

@@ -3,6 +3,8 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -14,6 +16,17 @@ type Config struct {
 	ScrapperGRPCAddr string
 	DatabaseURL      string
 	AccessType       AccessType
+
+	CheckInterval time.Duration
+	LinkBatchSize int
+	WorkerCount   int
+
+	GitHubBaseURL        string
+	GitHubToken          string
+	StackOverflowBaseURL string
+	StackOverflowSite    string
+	ExternalAPITimeout   time.Duration
+	ExternalAPIPerPage   int
 }
 
 type AccessType string
@@ -23,44 +36,89 @@ const (
 	AccessTypeORM AccessType = "ORM"
 )
 
+const (
+	envBotHTTPURL       = "BOT_HTTP_URL"
+	envBotGRPCAddr      = "BOT_GRPC_ADDR"
+	envScrapperHTTPAddr = "SCRAPPER_HTTP_ADDR"
+	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
+	envDatabaseURL      = "DATABASE_URL"
+	envAccessType       = "ACCESS_TYPE"
+
+	envCheckInterval = "CHECK_INTERVAL"
+	envLinkBatchSize = "LINK_BATCH_SIZE"
+	envWorkerCount   = "WORKER_COUNT"
+
+	envGitHubBaseURL        = "GITHUB_BASE_URL"
+	envGitHubToken          = "GITHUB_TOKEN"
+	envStackOverflowBaseURL = "STACKOVERFLOW_BASE_URL"
+	envStackOverflowSite    = "STACKOVERFLOW_SITE"
+	envExternalAPITimeout   = "EXTERNAL_API_TIMEOUT"
+	envExternalAPIPerPage   = "EXTERNAL_API_PER_PAGE"
+)
+
+const (
+	defaultBotHTTPURL       = "http://localhost:8080"
+	defaultBotGRPCAddr      = "localhost:8082"
+	defaultScrapperHTTPAddr = ":8081"
+	defaultScrapperGRPCAddr = ":8083"
+	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
+	defaultAccessType       = string(AccessTypeSQL)
+
+	defaultCheckInterval = 30 * time.Second
+	defaultLinkBatchSize = 100
+	defaultWorkerCount   = 4
+
+	defaultGitHubBaseURL        = "https://api.github.com"
+	defaultGitHubToken          = ""
+	defaultStackOverflowBaseURL = "https://api.stackexchange.com/2.3"
+	defaultStackOverflowSite    = "stackoverflow"
+	defaultExternalAPITimeout   = 10 * time.Second
+	defaultExternalAPIPerPage   = 100
+)
+
+const (
+	minLinkBatchSize      = 50
+	maxLinkBatchSize      = 500
+	minWorkerCount        = 1
+	minExternalAPIPerPage = 1
+)
+
 func MustLoad() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found")
 	}
 
-	botHTTPURL := os.Getenv("BOT_HTTP_URL")
-	if botHTTPURL == "" {
-		botHTTPURL = "http://localhost:8080"
-	}
+	botHTTPURL := getEnv(envBotHTTPURL, defaultBotHTTPURL)
+	botGRPCAddr := getEnv(envBotGRPCAddr, defaultBotGRPCAddr)
+	scrapperHTTPAddr := getEnv(envScrapperHTTPAddr, defaultScrapperHTTPAddr)
+	scrapperGRPCAddr := getEnv(envScrapperGRPCAddr, defaultScrapperGRPCAddr)
+	databaseURL := getEnv(envDatabaseURL, defaultDatabaseURL)
 
-	botGRPCAddr := os.Getenv("BOT_GRPC_ADDR")
-	if botGRPCAddr == "" {
-		botGRPCAddr = "localhost:8082"
-	}
-
-	scrapperHTTPAddr := os.Getenv("SCRAPPER_HTTP_ADDR")
-	if scrapperHTTPAddr == "" {
-		scrapperHTTPAddr = ":8081"
-	}
-
-	scrapperGRPCAddr := os.Getenv("SCRAPPER_GRPC_ADDR")
-	if scrapperGRPCAddr == "" {
-		scrapperGRPCAddr = ":8083"
-	}
-
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
-	}
-
-	accessTypeStr := os.Getenv("ACCESS_TYPE")
-	if accessTypeStr == "" {
-		accessTypeStr = "SQL"
-	}
-
+	accessTypeStr := getEnv(envAccessType, defaultAccessType)
 	accessType := AccessType(accessTypeStr)
+
 	if accessType != AccessTypeSQL && accessType != AccessTypeORM {
-		log.Fatalf("invalid ACCESS_TYPE: %s", accessTypeStr)
+		log.Fatalf("invalid %s: %s", envAccessType, accessTypeStr)
+	}
+
+	linkBatchSize := getEnvInt(envLinkBatchSize, defaultLinkBatchSize)
+	if linkBatchSize < minLinkBatchSize || linkBatchSize > maxLinkBatchSize {
+		log.Fatalf(
+			"%s must be between %d and %d",
+			envLinkBatchSize,
+			minLinkBatchSize,
+			maxLinkBatchSize,
+		)
+	}
+
+	workerCount := getEnvInt(envWorkerCount, defaultWorkerCount)
+	if workerCount < minWorkerCount {
+		log.Fatalf("%s must be at least %d", envWorkerCount, minWorkerCount)
+	}
+
+	externalAPIPerPage := getEnvInt(envExternalAPIPerPage, defaultExternalAPIPerPage)
+	if externalAPIPerPage < minExternalAPIPerPage {
+		log.Fatalf("%s must be at least %d", envExternalAPIPerPage, minExternalAPIPerPage)
 	}
 
 	return &Config{
@@ -69,6 +127,54 @@ func MustLoad() *Config {
 		ScrapperHTTPAddr: scrapperHTTPAddr,
 		ScrapperGRPCAddr: scrapperGRPCAddr,
 		DatabaseURL:      databaseURL,
-		AccessType:       AccessType(accessType),
+		AccessType:       accessType,
+
+		CheckInterval: getEnvDuration(envCheckInterval, defaultCheckInterval),
+		LinkBatchSize: linkBatchSize,
+		WorkerCount:   workerCount,
+
+		GitHubBaseURL:        getEnv(envGitHubBaseURL, defaultGitHubBaseURL),
+		GitHubToken:          getEnv(envGitHubToken, defaultGitHubToken),
+		StackOverflowBaseURL: getEnv(envStackOverflowBaseURL, defaultStackOverflowBaseURL),
+		StackOverflowSite:    getEnv(envStackOverflowSite, defaultStackOverflowSite),
+		ExternalAPITimeout:   getEnvDuration(envExternalAPITimeout, defaultExternalAPITimeout),
+		ExternalAPIPerPage:   externalAPIPerPage,
 	}
+}
+
+func getEnv(key string, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	return value
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		log.Fatalf("invalid int value for %s: %s", key, value)
+	}
+
+	return parsed
+}
+
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		log.Fatalf("invalid duration value for %s: %s", key, value)
+	}
+
+	return parsed
 }

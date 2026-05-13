@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/dto"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
 
 type MessageSender interface {
@@ -22,7 +22,7 @@ func NewUpdatesHandler(bot MessageSender) *UpdatesHandler {
 }
 
 func (h *UpdatesHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	var update dto.LinkUpdate
+	var update api.LinkUpdate
 	err := json.NewDecoder(r.Body).Decode(&update)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -34,10 +34,15 @@ func (h *UpdatesHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	text := update.Description
+	if text == "" {
+		text = "Обнаружено обновление по ссылке: " + update.URL
+	}
+
 	for _, chatID := range update.TgChatIDs {
 		_ = h.bot.SendMessage(
 			chatID,
-			"Обнаружено обновление по ссылке: "+update.URL,
+			text,
 		)
 	}
 
