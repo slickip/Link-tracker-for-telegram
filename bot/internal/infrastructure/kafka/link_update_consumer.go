@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	confluent "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
@@ -12,9 +13,17 @@ import (
 )
 
 const (
-	kafkaPollTimeoutMs           = 1000
+	kafkaPollTimeoutMS           = 1000
 	kafkaAutoOffsetResetEarliest = "earliest"
 	kafkaEnableAutoCommitFalse   = false
+
+	defaultRetryDelay = 500 * time.Millisecond
+)
+
+const (
+	deadLetterReasonDeserialization = "deserialization_error"
+	deadLetterReasonValidation      = "validation_error"
+	deadLetterReasonProcessing      = "processing_error"
 )
 
 var (
@@ -22,6 +31,7 @@ var (
 	ErrKafkaTopicEmpty            = errors.New("kafka topic is empty")
 	ErrKafkaConsumerGroupEmpty    = errors.New("kafka consumer group is empty")
 	ErrKafkaHandlerEmpty          = errors.New("kafka link update handler is empty")
+	ErrInvalidKafkaLinkUpdate     = errors.New("invalid kafka link update")
 )
 
 type LinkUpdateHandler interface {
@@ -31,14 +41,19 @@ type LinkUpdateHandler interface {
 type LinkUpdateConsumerConfig struct {
 	BootstrapServers string
 	Topic            string
+	DLQTopic         string
 	ConsumerGroup    string
 	ClientID         string
+	MaxRetries       int
 }
 
 type LinkUpdateConsumer struct {
-	consumer *confluent.Consumer
-	topic    string
-	handler  LinkUpdateHandler
+	consumer    *confluent.Consumer
+	dlqProducer *DeadLetterProducer
+	topic       string
+	handler     LinkUpdateHandler
+	maxRetries  int
+	retryDelay  time.Duration
 }
 
 func NewLinkUpdateConsumer(
@@ -50,6 +65,9 @@ func NewLinkUpdateConsumer(
 	}
 	if cfg.Topic == "" {
 		return nil, ErrKafkaTopicEmpty
+	}
+	if cfg.DLQTopic == "" {
+		return nil, ErrKafkaDLQTopicEmpty
 	}
 	if cfg.ConsumerGroup == "" {
 		return nil, ErrKafkaConsumerGroupEmpty
@@ -69,10 +87,28 @@ func NewLinkUpdateConsumer(
 		return nil, fmt.Errorf("create kafka consumer: %w", err)
 	}
 
+	dlqProducer, err := NewDeadLetterProducer(
+		cfg.BootstrapServers,
+		cfg.DLQTopic,
+		cfg.ClientID,
+	)
+	if err != nil {
+		_ = consumer.Close()
+		return nil, err
+	}
+
+	maxRetries := cfg.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
 	return &LinkUpdateConsumer{
-		consumer: consumer,
-		topic:    cfg.Topic,
-		handler:  handler,
+		consumer:    consumer,
+		dlqProducer: dlqProducer,
+		topic:       cfg.Topic,
+		handler:     handler,
+		maxRetries:  maxRetries,
+		retryDelay:  defaultRetryDelay,
 	}, nil
 }
 
@@ -87,19 +123,20 @@ func (c *LinkUpdateConsumer) Start(ctx context.Context) error {
 			return ctx.Err()
 
 		default:
-			event := c.consumer.Poll(kafkaPollTimeoutMs)
+			event := c.consumer.Poll(kafkaPollTimeoutMS)
 			if event == nil {
 				continue
 			}
-
 			switch message := event.(type) {
 			case *confluent.Message:
 				if err := c.handleMessage(ctx, message); err != nil {
 					return err
 				}
-
 			case confluent.Error:
-				return fmt.Errorf("kafka consumer error: %w", message)
+				if message.IsFatal() {
+					return fmt.Errorf("fatal kafka consumer error: %w", message)
+				}
+				continue
 			}
 		}
 	}
@@ -110,14 +147,59 @@ func (c *LinkUpdateConsumer) handleMessage(
 	message *confluent.Message,
 ) error {
 	var update api.LinkUpdate
+
 	if err := json.Unmarshal(message.Value, &update); err != nil {
-		return fmt.Errorf("unmarshal link update: %w", err)
+		return c.sendToDLQAndCommit(ctx, message, deadLetterReasonDeserialization, err)
 	}
 
-	if err := c.handler.HandleLinkUpdate(ctx, update); err != nil {
-		return fmt.Errorf("handle link update: %w", err)
+	if err := validateLinkUpdate(update); err != nil {
+		return c.sendToDLQAndCommit(ctx, message, deadLetterReasonValidation, err)
 	}
 
+	if err := c.handleWithRetries(ctx, update); err != nil {
+		return c.sendToDLQAndCommit(ctx, message, deadLetterReasonProcessing, err)
+	}
+
+	return c.commitMessage(message)
+}
+
+func (c *LinkUpdateConsumer) handleWithRetries(
+	ctx context.Context,
+	update api.LinkUpdate,
+) error {
+	var lastErr error
+
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		if err := c.handler.HandleLinkUpdate(ctx, update); err != nil {
+			lastErr = err
+
+			if attempt < c.maxRetries {
+				if err := sleepWithContext(ctx, c.retryDelay); err != nil {
+					return err
+				}
+				continue
+			}
+			return lastErr
+		}
+		return nil
+	}
+	return lastErr
+}
+
+func (c *LinkUpdateConsumer) sendToDLQAndCommit(
+	ctx context.Context,
+	message *confluent.Message,
+	reason string,
+	err error,
+) error {
+	if dlqErr := c.dlqProducer.Produce(ctx, message, reason, err); dlqErr != nil {
+		return dlqErr
+	}
+
+	return c.commitMessage(message)
+}
+
+func (c *LinkUpdateConsumer) commitMessage(message *confluent.Message) error {
 	if _, err := c.consumer.CommitMessage(message); err != nil {
 		return fmt.Errorf("commit kafka message: %w", err)
 	}
@@ -125,10 +207,35 @@ func (c *LinkUpdateConsumer) handleMessage(
 	return nil
 }
 
-func (c *LinkUpdateConsumer) Close() error {
-	if c == nil || c.consumer == nil {
-		return nil
+func validateLinkUpdate(update api.LinkUpdate) error {
+	if update.URL == "" || len(update.TgChatIDs) == 0 {
+		return ErrInvalidKafkaLinkUpdate
 	}
 
+	return nil
+}
+
+func sleepWithContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (c *LinkUpdateConsumer) Close() error {
+	if c == nil {
+		return nil
+	}
+	if c.dlqProducer != nil {
+		c.dlqProducer.Close()
+	}
+	if c.consumer == nil {
+		return nil
+	}
 	return c.consumer.Close()
 }
