@@ -242,6 +242,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9092,kafka3:9092
       KAFKA_LINK_UPDATES_TOPIC: link-updates
       KAFKA_CLIENT_ID: scrapper
+      OUTBOX_ENABLED: true
+      OUTBOX_PUBLISH_INTERVAL: 5s
+      OUTBOX_BATCH_SIZE: 100
     ports:
       - "8081:8081"
       - "8083:8083"

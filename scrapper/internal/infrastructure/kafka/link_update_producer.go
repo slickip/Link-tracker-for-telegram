@@ -33,6 +33,10 @@ type LinkUpdateProducer interface {
 	Produce(ctx context.Context, update api.LinkUpdate) error
 }
 
+type RawMessageProducer interface {
+	ProduceRaw(ctx context.Context, topic string, key string, payload []byte) error
+}
+
 type LinkUpdateProducerConfig struct {
 	BootstrapServers string
 	Topic            string
@@ -82,19 +86,29 @@ func (p *ConfluentLinkUpdateProducer) Produce(
 ) error {
 	body, err := json.Marshal(update)
 	if err != nil {
-		return fmt.Errorf("marshal link update: %w", err)
+		return err
 	}
 
 	key := strconv.FormatInt(update.ID, decimalBase)
+
+	return p.ProduceRaw(ctx, p.topic, key, body)
+}
+
+func (p *ConfluentLinkUpdateProducer) ProduceRaw(
+	ctx context.Context,
+	topic string,
+	key string,
+	payload []byte,
+) error {
 	deliveryChan := make(chan confluent.Event, deliveryChannelBufferSize)
 
 	if err := p.producer.Produce(&confluent.Message{
 		TopicPartition: confluent.TopicPartition{
-			Topic:     &p.topic,
+			Topic:     &topic,
 			Partition: confluent.PartitionAny,
 		},
 		Key:   []byte(key),
-		Value: body,
+		Value: payload,
 		Headers: []confluent.Header{
 			{
 				Key:   kafkaContentTypeHeaderKey,
@@ -102,7 +116,7 @@ func (p *ConfluentLinkUpdateProducer) Produce(
 			},
 		},
 	}, deliveryChan); err != nil {
-		return fmt.Errorf("produce link update: %w", err)
+		return err
 	}
 
 	select {
@@ -113,7 +127,7 @@ func (p *ConfluentLinkUpdateProducer) Produce(
 		}
 
 		if message.TopicPartition.Error != nil {
-			return fmt.Errorf("deliver link update: %w", message.TopicPartition.Error)
+			return message.TopicPartition.Error
 		}
 
 		return nil

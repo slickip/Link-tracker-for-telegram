@@ -19,6 +19,7 @@ type Config struct {
 
 	NotificationTransport NotificationTransport
 	Kafka                 KafkaConfig
+	Outbox                OutboxConfig
 
 	CheckInterval time.Duration
 	LinkBatchSize int
@@ -63,6 +64,10 @@ const (
 	envKafkaBootstrapServers = "KAFKA_BOOTSTRAP_SERVERS"
 	envKafkaLinkUpdatesTopic = "KAFKA_LINK_UPDATES_TOPIC"
 	envKafkaClientID         = "KAFKA_CLIENT_ID"
+
+	envOutboxEnabled         = "OUTBOX_ENABLED"
+	envOutboxPublishInterval = "OUTBOX_PUBLISH_INTERVAL"
+	envOutboxBatchSize       = "OUTBOX_BATCH_SIZE"
 )
 
 const (
@@ -89,6 +94,10 @@ const (
 	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
 	defaultKafkaLinkUpdatesTopic = "link-updates"
 	defaultKafkaClientID         = "scrapper"
+
+	defaultOutboxEnabled         = true
+	defaultOutboxPublishInterval = 5 * time.Second
+	defaultOutboxBatchSize       = 100
 )
 
 const (
@@ -110,6 +119,12 @@ type KafkaConfig struct {
 	BootstrapServers string
 	LinkUpdatesTopic string
 	ClientID         string
+}
+
+type OutboxConfig struct {
+	Enabled         bool
+	PublishInterval time.Duration
+	BatchSize       int
 }
 
 func MustLoad() *Config {
@@ -186,6 +201,11 @@ func MustLoad() *Config {
 		StackOverflowSite:    getEnv(envStackOverflowSite, defaultStackOverflowSite),
 		ExternalAPITimeout:   getEnvDuration(envExternalAPITimeout, defaultExternalAPITimeout),
 		ExternalAPIPerPage:   externalAPIPerPage,
+		Outbox: OutboxConfig{
+			Enabled:         getEnvBool(envOutboxEnabled, defaultOutboxEnabled),
+			PublishInterval: getEnvDuration(envOutboxPublishInterval, defaultOutboxPublishInterval),
+			BatchSize:       getEnvInt(envOutboxBatchSize, defaultOutboxBatchSize),
+		},
 	}
 }
 
@@ -221,6 +241,20 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
 		log.Fatalf("invalid duration value for %s: %s", key, value)
+	}
+
+	return parsed
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Fatalf("invalid bool value for %s: %s", key, value)
 	}
 
 	return parsed

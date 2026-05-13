@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"net"
@@ -38,6 +39,7 @@ func main() {
 		linkRepo     domainrepo.LinkRepository
 		trackingRepo domainrepo.TrackingRepository
 		tagRepo      domainrepo.TagRepository
+		outboxRepo   domainrepo.OutboxRepository
 	)
 
 	switch cfg.AccessType {
@@ -57,6 +59,7 @@ func main() {
 		linkRepo = sqlrepo.NewSQLChatLinkRepository(sqlDB, log)
 		trackingRepo = sqlrepo.NewSQLTrackingRepository(sqlDB, log)
 		tagRepo = sqlrepo.NewSQLTagRepository(sqlDB, log)
+		outboxRepo = sqlrepo.NewSQLOutboxRepository(sqlDB, log)
 
 		log.Info("scrapper repositories initialized", "access_type", "SQL")
 
@@ -71,6 +74,7 @@ func main() {
 		linkRepo = ormrepo.NewORMChatLinkRepository(gormDB)
 		trackingRepo = ormrepo.NewGormTrackingRepository(gormDB)
 		tagRepo = ormrepo.NewORMTagRepository(gormDB)
+		outboxRepo = ormrepo.NewORMOutboxRepository(gormDB)
 
 		log.Info("scrapper repositories initialized", "access_type", "ORM")
 
@@ -83,11 +87,13 @@ func main() {
 	linkService := services.NewLinkService(linkRepo, chatRepo)
 	tagService := services.NewTagService(tagRepo, chatRepo)
 
-	var botClient clients.BotClient
-
+	var (
+		botClient          clients.BotClient
+		linkUpdateProducer *kafka.ConfluentLinkUpdateProducer
+	)
 	switch cfg.NotificationTransport {
 	case config.NotificationTransportKafka:
-		linkUpdateProducer, err := kafka.NewConfluentLinkUpdateProducer(
+		producer, err := kafka.NewConfluentLinkUpdateProducer(
 			kafka.LinkUpdateProducerConfig{
 				BootstrapServers: cfg.Kafka.BootstrapServers,
 				Topic:            cfg.Kafka.LinkUpdatesTopic,
@@ -99,6 +105,7 @@ func main() {
 			os.Exit(1)
 		}
 
+		linkUpdateProducer = producer
 		defer linkUpdateProducer.Close()
 
 		botClient = clients.NewKafkaBotClient(linkUpdateProducer)
@@ -150,6 +157,31 @@ func main() {
 		cfg.LinkBatchSize,
 		cfg.WorkerCount,
 	)
+	if cfg.NotificationTransport == config.NotificationTransportKafka && cfg.Outbox.Enabled {
+		if outboxRepo == nil {
+			log.Error("outbox repository is not initialized")
+			os.Exit(1)
+		}
+
+		if linkUpdateProducer == nil {
+			log.Error("kafka producer is not initialized")
+			os.Exit(1)
+		}
+
+		scheduler.EnableOutbox(outboxRepo, cfg.Kafka.LinkUpdatesTopic)
+
+		outboxPublisher := services.NewOutboxPublisher(
+			outboxRepo,
+			linkUpdateProducer,
+			log,
+			cfg.Outbox.PublishInterval,
+			cfg.Outbox.BatchSize,
+		)
+
+		outboxPublisher.Start(context.Background())
+
+		log.Info("transactional outbox enabled")
+	}
 	scheduler.Start()
 
 	go func() {
