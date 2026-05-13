@@ -214,6 +214,7 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:9092,kafka2:9092,kafka3:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
 
   scrapper:
     build:
@@ -228,6 +229,8 @@ services:
         condition: service_completed_successfully
       kafka-init-topics:
         condition: service_completed_successfully
+      schema-registry:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/scrapper_db?sslmode=disable
       ACCESS_TYPE: SQL
@@ -245,6 +248,9 @@ services:
       OUTBOX_ENABLED: true
       OUTBOX_PUBLISH_INTERVAL: 5s
       OUTBOX_BATCH_SIZE: 100
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_LINK_UPDATES_SUBJECT: link-updates-value
+      KAFKA_SERIALIZATION_FORMAT: AVRO
     ports:
       - "8081:8081"
       - "8083:8083"
@@ -264,6 +270,8 @@ services:
         condition: service_completed_successfully
       scrapper:
         condition: service_started
+      schema-registry:
+        condition: service_healthy
     environment:
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
 
@@ -282,9 +290,36 @@ services:
       KAFKA_CLIENT_ID: bot
       KAFKA_DLQ_TOPIC: link-updates-dlq
       KAFKA_MAX_RETRIES: 3
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_LINK_UPDATES_SUBJECT: link-updates-value
+      KAFKA_SERIALIZATION_FORMAT: AVRO
     ports:
       - "8080:8080"
       - "8082:8082"
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    container_name: link-tracker-schema-registry
+    restart: unless-stopped
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    ports:
+      - "18085:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka1:9092,PLAINTEXT://kafka2:9092,PLAINTEXT://kafka3:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/subjects || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
 
 volumes:
   postgres_data:

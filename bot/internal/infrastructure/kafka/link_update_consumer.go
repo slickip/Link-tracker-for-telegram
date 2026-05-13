@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	confluent "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/avrocodec"
 )
 
 const (
@@ -39,12 +41,15 @@ type LinkUpdateHandler interface {
 }
 
 type LinkUpdateConsumerConfig struct {
-	BootstrapServers string
-	Topic            string
-	DLQTopic         string
-	ConsumerGroup    string
-	ClientID         string
-	MaxRetries       int
+	BootstrapServers    string
+	Topic               string
+	DLQTopic            string
+	ConsumerGroup       string
+	ClientID            string
+	MaxRetries          int
+	SchemaRegistryURL   string
+	LinkUpdatesSubject  string
+	SerializationFormat string
 }
 
 type LinkUpdateConsumer struct {
@@ -54,6 +59,7 @@ type LinkUpdateConsumer struct {
 	handler     LinkUpdateHandler
 	maxRetries  int
 	retryDelay  time.Duration
+	codec       *avrocodec.LinkUpdateCodec
 }
 
 func NewLinkUpdateConsumer(
@@ -97,6 +103,26 @@ func NewLinkUpdateConsumer(
 		return nil, err
 	}
 
+	var codec *avrocodec.LinkUpdateCodec
+
+	if strings.EqualFold(cfg.SerializationFormat, "AVRO") {
+		subject := cfg.LinkUpdatesSubject
+		if subject == "" {
+			subject = cfg.Topic + "-value"
+		}
+
+		codec, err = avrocodec.NewLinkUpdateCodec(
+			context.Background(),
+			cfg.SchemaRegistryURL,
+			subject,
+		)
+		if err != nil {
+			_ = consumer.Close()
+			dlqProducer.Close()
+			return nil, err
+		}
+	}
+
 	maxRetries := cfg.MaxRetries
 	if maxRetries < 0 {
 		maxRetries = 0
@@ -109,6 +135,7 @@ func NewLinkUpdateConsumer(
 		handler:     handler,
 		maxRetries:  maxRetries,
 		retryDelay:  defaultRetryDelay,
+		codec:       codec,
 	}, nil
 }
 
@@ -146,9 +173,17 @@ func (c *LinkUpdateConsumer) handleMessage(
 	ctx context.Context,
 	message *confluent.Message,
 ) error {
-	var update api.LinkUpdate
+	var (
+		update api.LinkUpdate
+		err    error
+	)
 
-	if err := json.Unmarshal(message.Value, &update); err != nil {
+	if c.codec != nil {
+		update, err = c.codec.Deserialize(message.Value)
+	} else {
+		err = json.Unmarshal(message.Value, &update)
+	}
+	if err != nil {
 		return c.sendToDLQAndCommit(ctx, message, deadLetterReasonDeserialization, err)
 	}
 

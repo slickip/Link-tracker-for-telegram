@@ -68,6 +68,10 @@ const (
 	envOutboxEnabled         = "OUTBOX_ENABLED"
 	envOutboxPublishInterval = "OUTBOX_PUBLISH_INTERVAL"
 	envOutboxBatchSize       = "OUTBOX_BATCH_SIZE"
+
+	envSchemaRegistryURL        = "SCHEMA_REGISTRY_URL"
+	envKafkaLinkUpdatesSubject  = "KAFKA_LINK_UPDATES_SUBJECT"
+	envKafkaSerializationFormat = "KAFKA_SERIALIZATION_FORMAT"
 )
 
 const (
@@ -98,6 +102,10 @@ const (
 	defaultOutboxEnabled         = true
 	defaultOutboxPublishInterval = 5 * time.Second
 	defaultOutboxBatchSize       = 100
+
+	defaultSchemaRegistryURL        = "http://localhost:8085"
+	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
+	defaultKafkaSerializationFormat = "AVRO"
 )
 
 const (
@@ -116,9 +124,12 @@ const (
 )
 
 type KafkaConfig struct {
-	BootstrapServers string
-	LinkUpdatesTopic string
-	ClientID         string
+	BootstrapServers    string
+	LinkUpdatesTopic    string
+	ClientID            string
+	SchemaRegistryURL   string
+	LinkUpdatesSubject  string
+	SerializationFormat string
 }
 
 type OutboxConfig struct {
@@ -155,9 +166,15 @@ func MustLoad() *Config {
 	}
 
 	kafkaConfig := KafkaConfig{
-		BootstrapServers: getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
-		LinkUpdatesTopic: getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
-		ClientID:         getEnv(envKafkaClientID, defaultKafkaClientID),
+		BootstrapServers:   getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
+		LinkUpdatesTopic:   getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
+		ClientID:           getEnv(envKafkaClientID, defaultKafkaClientID),
+		SchemaRegistryURL:  getEnv(envSchemaRegistryURL, defaultSchemaRegistryURL),
+		LinkUpdatesSubject: getEnv(envKafkaLinkUpdatesSubject, defaultKafkaLinkUpdatesSubject),
+		SerializationFormat: getEnv(
+			envKafkaSerializationFormat,
+			defaultKafkaSerializationFormat,
+		),
 	}
 
 	linkBatchSize := getEnvInt(envLinkBatchSize, defaultLinkBatchSize)

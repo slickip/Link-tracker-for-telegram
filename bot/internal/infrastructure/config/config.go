@@ -27,12 +27,15 @@ const (
 )
 
 type KafkaConfig struct {
-	BootstrapServers string
-	LinkUpdatesTopic string
-	DLQTopic         string
-	ConsumerGroup    string
-	ClientID         string
-	MaxRetries       int
+	BootstrapServers    string
+	LinkUpdatesTopic    string
+	DLQTopic            string
+	ConsumerGroup       string
+	ClientID            string
+	MaxRetries          int
+	SchemaRegistryURL   string
+	LinkUpdatesSubject  string
+	SerializationFormat string
 }
 
 const (
@@ -50,6 +53,10 @@ const (
 	envKafkaConsumerGroup    = "KAFKA_CONSUMER_GROUP"
 	envKafkaClientID         = "KAFKA_CLIENT_ID"
 	envKafkaMaxRetries       = "KAFKA_MAX_RETRIES"
+
+	envSchemaRegistryURL        = "SCHEMA_REGISTRY_URL"
+	envKafkaLinkUpdatesSubject  = "KAFKA_LINK_UPDATES_SUBJECT"
+	envKafkaSerializationFormat = "KAFKA_SERIALIZATION_FORMAT"
 )
 
 const (
@@ -66,6 +73,10 @@ const (
 	defaultKafkaClientID         = "bot"
 	defaultKafkaMaxRetries       = 3
 	minKafkaMaxRetries           = 0
+
+	defaultSchemaRegistryURL        = "http://localhost:8085"
+	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
+	defaultKafkaSerializationFormat = "AVRO"
 )
 
 func MustLoad() *Config {
@@ -102,12 +113,15 @@ func MustLoad() *Config {
 		DatabaseURL:      databaseURL,
 		AccessType:       accessType,
 		Kafka: KafkaConfig{
-			BootstrapServers: getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
-			LinkUpdatesTopic: getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
-			DLQTopic:         getEnv(envKafkaDLQTopic, defaultKafkaDLQTopic),
-			ConsumerGroup:    getEnv(envKafkaConsumerGroup, defaultKafkaConsumerGroup),
-			ClientID:         getEnv(envKafkaClientID, defaultKafkaClientID),
-			MaxRetries:       kafkaMaxRetries,
+			BootstrapServers:    getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
+			LinkUpdatesTopic:    getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
+			DLQTopic:            getEnv(envKafkaDLQTopic, defaultKafkaDLQTopic),
+			ConsumerGroup:       getEnv(envKafkaConsumerGroup, defaultKafkaConsumerGroup),
+			ClientID:            getEnv(envKafkaClientID, defaultKafkaClientID),
+			MaxRetries:          kafkaMaxRetries,
+			SchemaRegistryURL:   getEnv(envSchemaRegistryURL, defaultSchemaRegistryURL),
+			LinkUpdatesSubject:  getEnv(envKafkaLinkUpdatesSubject, defaultKafkaLinkUpdatesSubject),
+			SerializationFormat: getEnv(envKafkaSerializationFormat, defaultKafkaSerializationFormat),
 		},
 	}
 }
