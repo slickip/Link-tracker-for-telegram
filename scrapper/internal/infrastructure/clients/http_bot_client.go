@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
 
 type BotClient interface {
-	SendUpdate(ctx context.Context, update domain.LinkUpdate) error
+	SendUpdate(ctx context.Context, update api.LinkUpdate) error
 }
 
 type HTTPBotClient struct {
@@ -26,7 +26,7 @@ func NewHTTPBotClient(baseURL string) *HTTPBotClient {
 	}
 }
 
-func (c *HTTPBotClient) SendUpdate(ctx context.Context, update domain.LinkUpdate) error {
+func (c *HTTPBotClient) SendUpdate(ctx context.Context, update api.LinkUpdate) error {
 	body, err := json.Marshal(update)
 	if err != nil {
 		return err

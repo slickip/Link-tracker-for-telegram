@@ -22,28 +22,30 @@ func NewSQLTrackingRepository(db *sql.DB, log *logger.Slog) repo.TrackingReposit
 	}
 }
 
-func (r *SqlTrackingRepository) FindSubscribers(ctx context.Context, url string) ([]int64, error) {
+func (r *SqlTrackingRepository) FindSubscribers(ctx context.Context, linkID int64) ([]int64, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT s.chat_id
-		FROM subscriptions s
-		JOIN links l ON l.id = s.link_id
-		WHERE l.url = $1
-	`, url)
+		SELECT chat_id
+		FROM subscriptions
+		WHERE link_id = $1
+	`, linkID)
 	if err != nil {
 		return nil, err
 	}
-	if err := rows.Close(); err != nil {
-		r.logger.Error("failed to close rows", "error", err)
-	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			r.logger.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	var result []int64
 
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var chatID int64
+		if err := rows.Scan(&chatID); err != nil {
 			return nil, err
 		}
-		result = append(result, id)
+
+		result = append(result, chatID)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -53,40 +55,53 @@ func (r *SqlTrackingRepository) FindSubscribers(ctx context.Context, url string)
 	return result, nil
 }
 
-func (r *SqlTrackingRepository) GetAllTrackedLinks(ctx context.Context) ([]domain.Link, error) {
+func (r *SqlTrackingRepository) GetTrackedLinksBatch(ctx context.Context, limit, offset int) ([]domain.Link, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT url, last_updated
-		FROM links
-	`)
+		SELECT DISTINCT l.id, l.url, l.last_updated
+		FROM links l
+		JOIN subscriptions s ON s.link_id = l.id
+		ORDER BY l.id
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	if err := rows.Close(); err != nil {
-		r.logger.Error("failed to close rows", "error", err)
-	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			r.logger.Error("failed to close rows", "error", err)
+		}
+	}()
 
-	var result []domain.Link
+	var links []domain.Link
 
 	for rows.Next() {
 		var link domain.Link
-		if err := rows.Scan(&link.URL, &link.LastUpdatedAt); err != nil {
+
+		err := rows.Scan(
+			&link.ID,
+			&link.URL,
+			&link.LastUpdatedAt,
+		)
+		if err != nil {
 			return nil, err
 		}
-		result = append(result, link)
+
+		links = append(links, link)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return result, nil
+	return links, nil
 }
 
-func (r *SqlTrackingRepository) UpdateLastUpdated(ctx context.Context, url string, t time.Time) error {
+func (r *SqlTrackingRepository) UpdateLastUpdated(ctx context.Context, linkID int64, t time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE links
 		SET last_updated = $1
-		WHERE url = $2
-	`, t, url)
+		WHERE id = $2
+	`, t, linkID)
+
 	return err
 }

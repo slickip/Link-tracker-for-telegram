@@ -5,59 +5,158 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
+
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
+const defaultGitHubBaseURL = "https://api.github.com"
+
 type GitHubClient struct {
-	client *http.Client
+	client  *http.Client
+	baseURL string
+	token   string
+	perPage int
 }
 
-type githubRepoResponse struct {
-	UpdatedAt time.Time `json:"updated_at"`
+type GitHubClientConfig struct {
+	BaseURL string
+	Token   string
+	Timeout time.Duration
+	PerPage int
 }
 
-func NewGitHubClient() *GitHubClient {
+type githubIssueResponse struct {
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	HTMLURL   string    `json:"html_url"`
+
+	User struct {
+		Login string `json:"login"`
+	} `json:"user"`
+
+	PullRequest *struct{} `json:"pull_request,omitempty"`
+}
+
+func NewGitHubClient(cfg GitHubClientConfig) *GitHubClient {
+	baseURL := strings.TrimRight(cfg.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = defaultGitHubBaseURL
+	}
+
+	timeout := cfg.Timeout
+	if timeout == 0 {
+		timeout = 10 * time.Second
+	}
+
+	perPage := cfg.PerPage
+	if perPage <= 0 {
+		perPage = 100
+	}
+
 	return &GitHubClient{
-		client: &http.Client{},
+		client: &http.Client{
+			Timeout: timeout,
+		},
+		baseURL: baseURL,
+		token:   cfg.Token,
+		perPage: perPage,
 	}
 }
 
-func (c *GitHubClient) GetRepoUpdatedAt(
+func (c *GitHubClient) GetNewIssuesAndPullRequests(
 	ctx context.Context,
 	owner string,
 	repo string,
-) (time.Time, error) {
-
-	url := fmt.Sprintf(
-		"https://api.github.com/repos/%s/%s",
-		owner,
-		repo,
-	)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	linkURL string,
+	linkID int64,
+	since time.Time,
+) ([]domain.LinkUpdate, time.Time, error) {
+	endpoint, err := url.Parse(fmt.Sprintf(
+		"%s/repos/%s/%s/issues",
+		c.baseURL,
+		url.PathEscape(owner),
+		url.PathEscape(repo),
+	))
 	if err != nil {
-		return time.Time{}, err
+		return nil, time.Time{}, err
 	}
-	req.Header.Set("User-Agent", "link-tracker")
+
+	query := endpoint.Query()
+	query.Set("state", "all")
+	query.Set("sort", "created")
+	query.Set("direction", "desc")
+	query.Set("per_page", fmt.Sprintf("%d", c.perPage))
+
+	if !since.IsZero() {
+		query.Set("since", since.UTC().Format(time.RFC3339))
+	}
+
+	endpoint.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	c.setHeaders(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return time.Time{}, err
+		return nil, time.Time{}, err
 	}
-
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return time.Time{}, fmt.Errorf("github status %d", resp.StatusCode)
+		return nil, time.Time{}, fmt.Errorf("github status %d", resp.StatusCode)
 	}
 
-	var result githubRepoResponse
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return time.Time{}, err
+	var items []githubIssueResponse
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		return nil, time.Time{}, err
 	}
 
-	return result.UpdatedAt, nil
+	updates := make([]domain.LinkUpdate, 0)
+	maxCreatedAt := since
+
+	for _, item := range items {
+		if !since.IsZero() && !item.CreatedAt.After(since) {
+			continue
+		}
+
+		updateType := domain.UpdateTypeGitHubIssue
+		if item.PullRequest != nil {
+			updateType = domain.UpdateTypeGitHubPullRequest
+		}
+
+		updates = append(updates, domain.LinkUpdate{
+			LinkID:    linkID,
+			URL:       linkURL,
+			Type:      updateType,
+			Title:     item.Title,
+			Username:  item.User.Login,
+			CreatedAt: item.CreatedAt,
+			Preview:   MakePreview(item.Body),
+		})
+
+		if item.CreatedAt.After(maxCreatedAt) {
+			maxCreatedAt = item.CreatedAt
+		}
+	}
+
+	return updates, maxCreatedAt, nil
+}
+
+func (c *GitHubClient) setHeaders(req *http.Request) {
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "link-tracker")
+
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 }

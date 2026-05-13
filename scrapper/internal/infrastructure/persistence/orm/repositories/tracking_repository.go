@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"gorm.io/gorm"
@@ -19,14 +20,13 @@ func NewGormTrackingRepository(db *gorm.DB) repo.TrackingRepository {
 	return &GormTrackingRepository{db: db}
 }
 
-func (r *GormTrackingRepository) FindSubscribers(ctx context.Context, url string) ([]int64, error) {
+func (r *GormTrackingRepository) FindSubscribers(ctx context.Context, linkID int64) ([]int64, error) {
 	var result []int64
 
 	err := r.db.WithContext(ctx).
-		Table("subscriptions s").
-		Select("s.chat_id").
-		Joins("JOIN links l ON l.id = s.link_id").
-		Where("l.url = ?", url).
+		Table("subscriptions").
+		Select("chat_id").
+		Where("link_id = ?", linkID).
 		Scan(&result).Error
 	if err != nil {
 		return nil, err
@@ -35,30 +35,48 @@ func (r *GormTrackingRepository) FindSubscribers(ctx context.Context, url string
 	return result, nil
 }
 
-func (r *GormTrackingRepository) GetAllTrackedLinks(ctx context.Context) ([]domain.Link, error) {
-	var links []models.LinkModel
+func (r *GormTrackingRepository) GetTrackedLinksBatch(ctx context.Context, limit, offset int) ([]domain.Link, error) {
+	type linkRow struct {
+		ID          int64
+		URL         string
+		LastUpdated sql.NullTime
+	}
+
+	var rows []linkRow
 
 	err := r.db.WithContext(ctx).
-		Select("url", "last_updated", "last_checked").
-		Find(&links).Error
+		Table("links l").
+		Select("DISTINCT l.id, l.url, l.last_updated").
+		Joins("JOIN subscriptions s ON s.link_id = l.id").
+		Order("l.id").
+		Limit(limit).
+		Offset(offset).
+		Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]domain.Link, 0, len(links))
-	for _, link := range links {
-		result = append(result, domain.Link{
-			URL:           link.URL,
-			LastUpdatedAt: link.LastUpdated,
-		})
+	links := make([]domain.Link, 0, len(rows))
+
+	for _, row := range rows {
+		link := domain.Link{
+			ID:  row.ID,
+			URL: row.URL,
+		}
+
+		if row.LastUpdated.Valid {
+			link.LastUpdatedAt = row.LastUpdated.Time
+		}
+
+		links = append(links, link)
 	}
 
-	return result, nil
+	return links, nil
 }
 
-func (r *GormTrackingRepository) UpdateLastUpdated(ctx context.Context, url string, t time.Time) error {
+func (r *GormTrackingRepository) UpdateLastUpdated(ctx context.Context, linkID int64, t time.Time) error {
 	return r.db.WithContext(ctx).
 		Model(&models.LinkModel{}).
-		Where("url = ?", url).
+		Where("id = ?", linkID).
 		Update("last_updated", t).Error
 }

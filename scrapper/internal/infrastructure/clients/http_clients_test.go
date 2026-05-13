@@ -77,9 +77,16 @@ func TestGitHubClient_ErrorOnNon2xx(t *testing.T) {
 	defer stackSrv.Close()
 
 	withRewriteTransport(t, githubSrv, stackSrv, func() {
-		c := NewGitHubClient()
+		c := NewGitHubClient(GitHubClientConfig{})
 
-		_, err := c.GetRepoUpdatedAt(context.Background(), "user", "repo")
+		_, _, err := c.GetNewIssuesAndPullRequests(
+			context.Background(),
+			"user",
+			"repo",
+			"https://github.com/user/repo",
+			1,
+			time.Time{},
+		)
 		if err == nil {
 			t.Fatalf("expected error on non-2xx")
 		}
@@ -99,9 +106,16 @@ func TestGitHubClient_ErrorOnInvalidJSON(t *testing.T) {
 	defer stackSrv.Close()
 
 	withRewriteTransport(t, githubSrv, stackSrv, func() {
-		c := NewGitHubClient()
+		c := NewGitHubClient(GitHubClientConfig{})
 
-		_, err := c.GetRepoUpdatedAt(context.Background(), "user", "repo")
+		_, _, err := c.GetNewIssuesAndPullRequests(
+			context.Background(),
+			"user",
+			"repo",
+			"https://github.com/user/repo",
+			1,
+			time.Time{},
+		)
 		if err == nil {
 			t.Fatalf("expected error on invalid json")
 		}
@@ -121,9 +135,15 @@ func TestStackOverflowClient_ErrorOnEmptyItems(t *testing.T) {
 	defer stackSrv.Close()
 
 	withRewriteTransport(t, githubSrv, stackSrv, func() {
-		c := NewStackOverflowClient()
+		c := NewStackOverflowClient(StackOverflowClientConfig{})
 
-		_, err := c.GetQuestionUpdatedAt(context.Background(), 123)
+		_, _, err := c.GetNewAnswersAndComments(
+			context.Background(),
+			123,
+			"https://stackoverflow.com/questions/123",
+			1,
+			time.Time{},
+		)
 		if err == nil {
 			t.Fatalf("expected error on empty items")
 		}
@@ -143,9 +163,15 @@ func TestStackOverflowClient_ErrorOnInvalidJSON(t *testing.T) {
 	defer stackSrv.Close()
 
 	withRewriteTransport(t, githubSrv, stackSrv, func() {
-		c := NewStackOverflowClient()
+		c := NewStackOverflowClient(StackOverflowClientConfig{})
 
-		_, err := c.GetQuestionUpdatedAt(context.Background(), 123)
+		_, _, err := c.GetNewAnswersAndComments(
+			context.Background(),
+			123,
+			"https://stackoverflow.com/questions/123",
+			1,
+			time.Time{},
+		)
 		if err == nil {
 			t.Fatalf("expected error on invalid json")
 		}
@@ -164,9 +190,15 @@ func TestStackOverflowClient_ErrorOnNon2xx(t *testing.T) {
 	defer stackSrv.Close()
 
 	withRewriteTransport(t, githubSrv, stackSrv, func() {
-		c := NewStackOverflowClient()
+		c := NewStackOverflowClient(StackOverflowClientConfig{})
 
-		_, err := c.GetQuestionUpdatedAt(context.Background(), 123)
+		_, _, err := c.GetNewAnswersAndComments(
+			context.Background(),
+			123,
+			"https://stackoverflow.com/questions/123",
+			1,
+			time.Time{},
+		)
 		if err == nil {
 			t.Fatalf("expected error on non-2xx")
 		}
