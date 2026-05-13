@@ -186,11 +186,17 @@ services:
         echo "Creating topic link-updates..."
         kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --create --if-not-exists --topic link-updates --partitions 3 --replication-factor 3 --config min.insync.replicas=2
 
+        echo "Creating topic link-updates-dlq..."
+        kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --create --if-not-exists --topic link-updates-dlq --partitions 3 --replication-factor 3 --config min.insync.replicas=2 --config retention.ms=2592000000
+
         echo "Kafka topics:"
         kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --list
 
         echo "Topic link-updates description:"
         kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --describe --topic link-updates
+
+        echo "Topic link-updates-dlq description:"
+        kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --describe --topic link-updates-dlq
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -271,6 +277,8 @@ services:
       KAFKA_LINK_UPDATES_TOPIC: link-updates
       KAFKA_CONSUMER_GROUP: bot-link-updates
       KAFKA_CLIENT_ID: bot
+      KAFKA_DLQ_TOPIC: link-updates-dlq
+      KAFKA_MAX_RETRIES: 3
     ports:
       - "8080:8080"
       - "8082:8082"

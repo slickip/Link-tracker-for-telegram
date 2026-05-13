@@ -106,8 +106,10 @@ func main() {
 		kafka.LinkUpdateConsumerConfig{
 			BootstrapServers: cfg.Kafka.BootstrapServers,
 			Topic:            cfg.Kafka.LinkUpdatesTopic,
+			DLQTopic:         cfg.Kafka.DLQTopic,
 			ConsumerGroup:    cfg.Kafka.ConsumerGroup,
 			ClientID:         cfg.Kafka.ClientID,
+			MaxRetries:       cfg.Kafka.MaxRetries,
 		},
 		updateService,
 	)
