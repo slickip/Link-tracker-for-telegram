@@ -7,56 +7,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"strconv"
 	"testing"
 	"time"
 
 	confluent "github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	tckafka "github.com/testcontainers/testcontainers-go/modules/kafka"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
 
-const (
-	testKafkaImage         = "confluentinc/confluent-local:7.5.0"
-	testLinkID             = 42
-	messageReadTimeout     = 15 * time.Second
-	topicNumPartitions     = 1
-	topicReplicationFactor = 1
-)
+const testLinkID = 42
 
 func TestConfluentLinkUpdateProducerProducesJSONMessage(t *testing.T) {
 	ctx := context.Background()
 
-	kafkaContainer, err := tckafka.Run(
-		ctx,
-		testKafkaImage,
-		tckafka.WithClusterID("test-cluster"),
-	)
-	if err != nil {
-		t.Fatalf("start kafka container: %v", err)
+	if sharedKafkaBootstrap == "" {
+		t.Fatal("shared kafka bootstrap is empty")
 	}
 
-	defer func() {
-		if err := kafkaContainer.Terminate(ctx); err != nil {
-			t.Logf("terminate kafka container: %v", err)
-		}
-	}()
+	topic := fmt.Sprintf("%s%d", integrationTestTopicPrefixMain, time.Now().UnixNano())
 
-	brokers, err := kafkaContainer.Brokers(ctx)
-	if err != nil {
-		t.Fatalf("get kafka brokers: %v", err)
-	}
-
-	bootstrapServers := strings.Join(brokers, ",")
-	topic := fmt.Sprintf("link-updates-%d", time.Now().UnixNano())
-
-	createTestTopic(t, ctx, bootstrapServers, topic)
+	createTestTopic(t, ctx, sharedKafkaBootstrap, topic)
 
 	producer, err := NewConfluentLinkUpdateProducer(LinkUpdateProducerConfig{
-		BootstrapServers: bootstrapServers,
+		BootstrapServers: sharedKafkaBootstrap,
 		Topic:            topic,
-		ClientID:         "scrapper-test",
+		ClientID:         integrationTestClientIDScrapper,
 	})
 	if err != nil {
 		t.Fatalf("create link update producer: %v", err)
@@ -64,9 +40,9 @@ func TestConfluentLinkUpdateProducerProducesJSONMessage(t *testing.T) {
 	defer producer.Close()
 
 	consumer, err := confluent.NewConsumer(&confluent.ConfigMap{
-		"bootstrap.servers": bootstrapServers,
-		"group.id":          "bot-test-group",
-		"auto.offset.reset": "earliest",
+		"bootstrap.servers": sharedKafkaBootstrap,
+		"group.id":          fmt.Sprintf("bot-test-group-%d", time.Now().UnixNano()),
+		"auto.offset.reset": kafkaAutoOffsetResetEarliest,
 	})
 	if err != nil {
 		t.Fatalf("create kafka consumer: %v", err)
@@ -98,13 +74,14 @@ func TestConfluentLinkUpdateProducerProducesJSONMessage(t *testing.T) {
 		t.Fatalf("produce link update: %v", err)
 	}
 
-	message, err := consumer.ReadMessage(messageReadTimeout)
+	message, err := consumer.ReadMessage(integrationTestWaitConsumeMessage)
 	if err != nil {
 		t.Fatalf("read kafka message: %v", err)
 	}
 
-	if string(message.Key) != "42" {
-		t.Fatalf("expected kafka key %q, got %q", "42", string(message.Key))
+	wantKey := strconv.FormatInt(testLinkID, decimalBase)
+	if string(message.Key) != wantKey {
+		t.Fatalf("expected kafka key %q, got %q", wantKey, string(message.Key))
 	}
 
 	assertContentTypeHeader(t, message.Headers)
@@ -157,8 +134,8 @@ func createTestTopic(
 	results, err := adminClient.CreateTopics(ctx, []confluent.TopicSpecification{
 		{
 			Topic:             topic,
-			NumPartitions:     topicNumPartitions,
-			ReplicationFactor: topicReplicationFactor,
+			NumPartitions:     integrationTestNumPartitions,
+			ReplicationFactor: integrationTestReplicationFactor,
 		},
 	})
 	if err != nil {

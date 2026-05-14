@@ -7,8 +7,6 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
 
-const defaultLinkUpdateMessagePrefix = "Обнаружено обновление по ссылке: "
-
 var ErrInvalidLinkUpdate = errors.New("invalid link update")
 
 type MessageSender interface {
@@ -30,10 +28,7 @@ func (s *UpdateService) HandleLinkUpdate(_ context.Context, update api.LinkUpdat
 		return ErrInvalidLinkUpdate
 	}
 
-	text := update.Description
-	if text == "" {
-		text = defaultLinkUpdateMessagePrefix + update.URL
-	}
+	text := update.SubscriberNotificationBody()
 
 	for _, chatID := range update.TgChatIDs {
 		if err := s.bot.SendMessage(chatID, text); err != nil {

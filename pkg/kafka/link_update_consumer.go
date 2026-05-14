@@ -17,9 +17,11 @@ import (
 const (
 	kafkaPollTimeoutMS           = 1000
 	kafkaAutoOffsetResetEarliest = "earliest"
-	kafkaEnableAutoCommitFalse   = false
+	kafkaEnableAutoCommit        = false
 
 	defaultRetryDelay = 500 * time.Millisecond
+
+	consumerMaxRetriesFloor = 0
 )
 
 const (
@@ -29,11 +31,9 @@ const (
 )
 
 var (
-	ErrKafkaBootstrapServersEmpty = errors.New("kafka bootstrap servers are empty")
-	ErrKafkaTopicEmpty            = errors.New("kafka topic is empty")
-	ErrKafkaConsumerGroupEmpty    = errors.New("kafka consumer group is empty")
-	ErrKafkaHandlerEmpty          = errors.New("kafka link update handler is empty")
-	ErrInvalidKafkaLinkUpdate     = errors.New("invalid kafka link update")
+	ErrKafkaConsumerGroupEmpty = errors.New("kafka consumer group is empty")
+	ErrKafkaHandlerEmpty       = errors.New("kafka link update handler is empty")
+	ErrInvalidKafkaLinkUpdate  = errors.New("invalid kafka link update")
 )
 
 type LinkUpdateHandler interface {
@@ -87,7 +87,7 @@ func NewLinkUpdateConsumer(
 		"group.id":           cfg.ConsumerGroup,
 		"client.id":          cfg.ClientID,
 		"auto.offset.reset":  kafkaAutoOffsetResetEarliest,
-		"enable.auto.commit": kafkaEnableAutoCommitFalse,
+		"enable.auto.commit": kafkaEnableAutoCommit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create kafka consumer: %w", err)
@@ -105,7 +105,7 @@ func NewLinkUpdateConsumer(
 
 	var codec *avrocodec.LinkUpdateCodec
 
-	if strings.EqualFold(cfg.SerializationFormat, "AVRO") {
+	if strings.EqualFold(cfg.SerializationFormat, SerializationFormatAvro) {
 		subject := cfg.LinkUpdatesSubject
 		if subject == "" {
 			subject = cfg.Topic + "-value"
@@ -124,8 +124,8 @@ func NewLinkUpdateConsumer(
 	}
 
 	maxRetries := cfg.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
+	if maxRetries < consumerMaxRetriesFloor {
+		maxRetries = consumerMaxRetriesFloor
 	}
 
 	return &LinkUpdateConsumer{
