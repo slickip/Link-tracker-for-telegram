@@ -74,9 +74,9 @@ const (
 	defaultKafkaMaxRetries       = 3
 	minKafkaMaxRetries           = 0
 
-	defaultSchemaRegistryURL        = "http://localhost:8085"
+	defaultSchemaRegistryURL        = "http://localhost:18085"
 	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
-	defaultKafkaSerializationFormat = "AVRO"
+	defaultKafkaSerializationFormat = "JSON"
 )
 
 func MustLoad() *Config {

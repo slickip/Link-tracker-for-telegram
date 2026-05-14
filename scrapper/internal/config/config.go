@@ -103,9 +103,9 @@ const (
 	defaultOutboxPublishInterval = 5 * time.Second
 	defaultOutboxBatchSize       = 100
 
-	defaultSchemaRegistryURL        = "http://localhost:8085"
+	defaultSchemaRegistryURL        = "http://localhost:18085"
 	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
-	defaultKafkaSerializationFormat = "AVRO"
+	defaultKafkaSerializationFormat = "JSON"
 )
 
 const (

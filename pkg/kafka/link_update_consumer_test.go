@@ -14,15 +14,8 @@ import (
 	"time"
 
 	confluent "github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	tckafka "github.com/testcontainers/testcontainers-go/modules/kafka"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-)
-
-const (
-	testKafkaImage = "confluentinc/confluent-local:7.5.0"
-	testMainTopic  = "link-updates"
-	testDLQTopic   = "link-updates-dlq"
 )
 
 type sentMessage struct {
@@ -36,15 +29,12 @@ type fakeMessageSender struct {
 
 func newFakeMessageSender() *fakeMessageSender {
 	return &fakeMessageSender{
-		messages: make(chan sentMessage, 1),
+		messages: make(chan sentMessage, integrationTestSentMessageChanBuffer),
 	}
 }
 
 func (f *fakeMessageSender) HandleLinkUpdate(_ context.Context, update api.LinkUpdate) error {
-	text := update.Description
-	if text == "" {
-		text = "Обнаружено обновление по ссылке: " + update.URL
-	}
+	text := update.SubscriberNotificationBody()
 
 	for _, chatID := range update.TgChatIDs {
 		f.messages <- sentMessage{
@@ -86,11 +76,21 @@ func (h *failingHandler) Calls() int {
 
 func TestLinkUpdateConsumerHandlesKafkaMessage(t *testing.T) {
 	ctx := context.Background()
-	bootstrapServers := setupKafka(t, ctx, testMainTopic, testDLQTopic)
+
+	mainTopic, dlqTopic := uniqueTopicPair(t)
+	bootstrapServers := prepareKafkaTopics(t, ctx, mainTopic, dlqTopic)
 
 	fakeBot := newFakeMessageSender()
 
-	consumer := newTestConsumer(t, bootstrapServers, "bot-test-group-happy-path", 3, fakeBot)
+	consumer := newTestConsumer(
+		t,
+		bootstrapServers,
+		mainTopic,
+		dlqTopic,
+		fmt.Sprintf("bot-test-group-happy-path-%d", time.Now().UnixNano()),
+		integrationTestDefaultMaxRetries,
+		fakeBot,
+	)
 	defer closeConsumer(t, consumer)
 
 	consumerCtx, cancelConsumer := context.WithCancel(ctx)
@@ -110,7 +110,7 @@ func TestLinkUpdateConsumerHandlesKafkaMessage(t *testing.T) {
 		Description: "Test description",
 	}
 
-	produceRawMessage(t, bootstrapServers, testMainTopic, []byte("1"), mustMarshal(t, expected))
+	produceRawMessage(t, bootstrapServers, mainTopic, []byte("1"), mustMarshal(t, expected))
 
 	select {
 	case message := <-fakeBot.messages:
@@ -125,18 +125,28 @@ func TestLinkUpdateConsumerHandlesKafkaMessage(t *testing.T) {
 	case err := <-errCh:
 		t.Fatalf("consumer failed: %v", err)
 
-	case <-time.After(15 * time.Second):
+	case <-time.After(integrationTestWaitConsumeMessage):
 		t.Fatal("timeout waiting for consumed message")
 	}
 }
 
 func TestLinkUpdateConsumerSendsInvalidJSONToDLQ(t *testing.T) {
 	ctx := context.Background()
-	bootstrapServers := setupKafka(t, ctx, testMainTopic, testDLQTopic)
+
+	mainTopic, dlqTopic := uniqueTopicPair(t)
+	bootstrapServers := prepareKafkaTopics(t, ctx, mainTopic, dlqTopic)
 
 	handler := newFailingHandler(errors.New("handler must not be called"))
 
-	consumer := newTestConsumer(t, bootstrapServers, "bot-test-group-invalid-json", 3, handler)
+	consumer := newTestConsumer(
+		t,
+		bootstrapServers,
+		mainTopic,
+		dlqTopic,
+		fmt.Sprintf("bot-test-group-invalid-json-%d", time.Now().UnixNano()),
+		integrationTestDefaultMaxRetries,
+		handler,
+	)
 	defer closeConsumer(t, consumer)
 
 	consumerCtx, cancelConsumer := context.WithCancel(ctx)
@@ -145,9 +155,9 @@ func TestLinkUpdateConsumerSendsInvalidJSONToDLQ(t *testing.T) {
 	errCh := startConsumer(consumerCtx, consumer)
 
 	invalidPayload := []byte(`{"id":`)
-	produceRawMessage(t, bootstrapServers, testMainTopic, []byte("bad-json"), invalidPayload)
+	produceRawMessage(t, bootstrapServers, mainTopic, []byte("bad-json"), invalidPayload)
 
-	dlq := readDLQMessage(t, bootstrapServers)
+	dlq := readDLQMessage(t, bootstrapServers, dlqTopic)
 
 	if dlq.Reason != deadLetterReasonDeserialization {
 		t.Fatalf("expected DLQ reason %q, got %q", deadLetterReasonDeserialization, dlq.Reason)
@@ -157,8 +167,8 @@ func TestLinkUpdateConsumerSendsInvalidJSONToDLQ(t *testing.T) {
 		t.Fatalf("expected original payload %q, got %q", string(invalidPayload), dlq.OriginalPayload)
 	}
 
-	if handler.Calls() != 0 {
-		t.Fatalf("expected handler calls 0, got %d", handler.Calls())
+	if handler.Calls() != integrationTestExpectZeroHandlerCalls {
+		t.Fatalf("expected handler calls %d, got %d", integrationTestExpectZeroHandlerCalls, handler.Calls())
 	}
 
 	select {
@@ -170,14 +180,24 @@ func TestLinkUpdateConsumerSendsInvalidJSONToDLQ(t *testing.T) {
 
 func TestLinkUpdateConsumerRetriesAndSendsProcessingErrorToDLQ(t *testing.T) {
 	ctx := context.Background()
-	bootstrapServers := setupKafka(t, ctx, testMainTopic, testDLQTopic)
+
+	mainTopic, dlqTopic := uniqueTopicPair(t)
+	bootstrapServers := prepareKafkaTopics(t, ctx, mainTopic, dlqTopic)
 
 	processingErr := errors.New("telegram is temporarily unavailable")
 	handler := newFailingHandler(processingErr)
 
-	maxRetries := 2
+	maxRetries := integrationTestProcessingMaxRetries
 
-	consumer := newTestConsumer(t, bootstrapServers, "bot-test-group-processing-error", maxRetries, handler)
+	consumer := newTestConsumer(
+		t,
+		bootstrapServers,
+		mainTopic,
+		dlqTopic,
+		fmt.Sprintf("bot-test-group-processing-error-%d", time.Now().UnixNano()),
+		maxRetries,
+		handler,
+	)
 	defer closeConsumer(t, consumer)
 
 	consumerCtx, cancelConsumer := context.WithCancel(ctx)
@@ -192,9 +212,9 @@ func TestLinkUpdateConsumerRetriesAndSendsProcessingErrorToDLQ(t *testing.T) {
 		Description: "Test description",
 	}
 
-	produceRawMessage(t, bootstrapServers, testMainTopic, []byte("10"), mustMarshal(t, update))
+	produceRawMessage(t, bootstrapServers, mainTopic, []byte("10"), mustMarshal(t, update))
 
-	dlq := readDLQMessage(t, bootstrapServers)
+	dlq := readDLQMessage(t, bootstrapServers, dlqTopic)
 
 	if dlq.Reason != deadLetterReasonProcessing {
 		t.Fatalf("expected DLQ reason %q, got %q", deadLetterReasonProcessing, dlq.Reason)
@@ -216,34 +236,23 @@ func TestLinkUpdateConsumerRetriesAndSendsProcessingErrorToDLQ(t *testing.T) {
 	}
 }
 
-func setupKafka(t *testing.T, ctx context.Context, topics ...string) string {
+func uniqueTopicPair(t *testing.T) (main string, dlq string) {
 	t.Helper()
 
-	kafkaContainer, err := tckafka.Run(
-		ctx,
-		testKafkaImage,
-		tckafka.WithClusterID("test-cluster"),
-	)
-	if err != nil {
-		t.Fatalf("start kafka container: %v", err)
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	return integrationTestTopicPrefixMain + suffix, integrationTestTopicPrefixDLQ + suffix
+}
+
+func prepareKafkaTopics(t *testing.T, ctx context.Context, topics ...string) string {
+	t.Helper()
+
+	if sharedKafkaBootstrap == "" {
+		t.Fatal("shared kafka bootstrap is empty")
 	}
 
-	t.Cleanup(func() {
-		if err := kafkaContainer.Terminate(ctx); err != nil {
-			t.Logf("terminate kafka container: %v", err)
-		}
-	})
+	createKafkaTopics(t, ctx, sharedKafkaBootstrap, topics...)
 
-	brokers, err := kafkaContainer.Brokers(ctx)
-	if err != nil {
-		t.Fatalf("get kafka brokers: %v", err)
-	}
-
-	bootstrapServers := strings.Join(brokers, ",")
-
-	createKafkaTopics(t, ctx, bootstrapServers, topics...)
-
-	return bootstrapServers
+	return sharedKafkaBootstrap
 }
 
 func createKafkaTopics(
@@ -267,8 +276,8 @@ func createKafkaTopics(
 	for _, topic := range topics {
 		specs = append(specs, confluent.TopicSpecification{
 			Topic:             topic,
-			NumPartitions:     1,
-			ReplicationFactor: 1,
+			NumPartitions:     integrationTestNumPartitions,
+			ReplicationFactor: integrationTestReplicationFactor,
 		})
 	}
 
@@ -287,6 +296,8 @@ func createKafkaTopics(
 func newTestConsumer(
 	t *testing.T,
 	bootstrapServers string,
+	mainTopic string,
+	dlqTopic string,
 	consumerGroup string,
 	maxRetries int,
 	handler LinkUpdateHandler,
@@ -296,10 +307,10 @@ func newTestConsumer(
 	consumer, err := NewLinkUpdateConsumer(
 		LinkUpdateConsumerConfig{
 			BootstrapServers: bootstrapServers,
-			Topic:            testMainTopic,
-			DLQTopic:         testDLQTopic,
+			Topic:            mainTopic,
+			DLQTopic:         dlqTopic,
 			ConsumerGroup:    consumerGroup,
-			ClientID:         "bot-test",
+			ClientID:         integrationTestClientIDBot,
 			MaxRetries:       maxRetries,
 		},
 		handler,
@@ -315,7 +326,7 @@ func startConsumer(
 	ctx context.Context,
 	consumer *LinkUpdateConsumer,
 ) <-chan error {
-	errCh := make(chan error, 1)
+	errCh := make(chan error, integrationTestErrChanBuffer)
 
 	go func() {
 		err := consumer.Start(ctx)
@@ -346,7 +357,7 @@ func produceRawMessage(
 
 	producer, err := confluent.NewProducer(&confluent.ConfigMap{
 		"bootstrap.servers": bootstrapServers,
-		"client.id":         "scrapper-test",
+		"client.id":         integrationTestClientIDScrapper,
 	})
 	if err != nil {
 		t.Fatalf("create kafka producer: %v", err)
@@ -354,7 +365,7 @@ func produceRawMessage(
 
 	defer producer.Close()
 
-	deliveryChan := make(chan confluent.Event, 1)
+	deliveryChan := make(chan confluent.Event, integrationTestDeliveryChanBuffer)
 
 	if err := producer.Produce(&confluent.Message{
 		TopicPartition: confluent.TopicPartition{
@@ -378,7 +389,7 @@ func produceRawMessage(
 			t.Fatalf("deliver kafka message: %v", message.TopicPartition.Error)
 		}
 
-	case <-time.After(10 * time.Second):
+	case <-time.After(integrationTestWaitProduceDelivery):
 		t.Fatal("timeout waiting for message delivery")
 	}
 }
@@ -386,13 +397,14 @@ func produceRawMessage(
 func readDLQMessage(
 	t *testing.T,
 	bootstrapServers string,
+	dlqTopic string,
 ) DeadLetterMessage {
 	t.Helper()
 
 	consumer, err := confluent.NewConsumer(&confluent.ConfigMap{
 		"bootstrap.servers": bootstrapServers,
 		"group.id":          fmt.Sprintf("dlq-reader-%d", time.Now().UnixNano()),
-		"auto.offset.reset": "earliest",
+		"auto.offset.reset": kafkaAutoOffsetResetEarliest,
 	})
 	if err != nil {
 		t.Fatalf("create dlq consumer: %v", err)
@@ -404,11 +416,11 @@ func readDLQMessage(
 		}
 	}()
 
-	if err := consumer.SubscribeTopics([]string{testDLQTopic}, nil); err != nil {
+	if err := consumer.SubscribeTopics([]string{dlqTopic}, nil); err != nil {
 		t.Fatalf("subscribe to dlq topic: %v", err)
 	}
 
-	message, err := consumer.ReadMessage(20 * time.Second)
+	message, err := consumer.ReadMessage(integrationTestWaitReadDLQMessage)
 	if err != nil {
 		t.Fatalf("read dlq message: %v", err)
 	}

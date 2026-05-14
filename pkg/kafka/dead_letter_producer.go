@@ -90,7 +90,7 @@ func (p *DeadLetterProducer) Produce(
 		return fmt.Errorf("marshal dlq message: %w", err)
 	}
 
-	deliveryChan := make(chan confluent.Event, 1)
+	deliveryChan := make(chan confluent.Event, deliveryChannelBufferSize)
 
 	if err := p.producer.Produce(&confluent.Message{
 		TopicPartition: confluent.TopicPartition{

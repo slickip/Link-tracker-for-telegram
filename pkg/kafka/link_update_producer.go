@@ -81,7 +81,7 @@ func NewConfluentLinkUpdateProducer(
 
 	var codec *avrocodec.LinkUpdateCodec
 
-	if strings.EqualFold(cfg.SerializationFormat, "AVRO") {
+	if strings.EqualFold(cfg.SerializationFormat, SerializationFormatAvro) {
 		subject := cfg.LinkUpdatesSubject
 		if subject == "" {
 			subject = cfg.Topic + "-value"
