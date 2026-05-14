@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -15,6 +16,7 @@ type Config struct {
 	ScrapperGRPCAddr string
 	DatabaseURL      string
 	AccessType       AccessType
+	Kafka            KafkaConfig
 }
 
 type AccessType string
@@ -24,6 +26,18 @@ const (
 	AccessTypeORM AccessType = "ORM"
 )
 
+type KafkaConfig struct {
+	BootstrapServers    string
+	LinkUpdatesTopic    string
+	DLQTopic            string
+	ConsumerGroup       string
+	ClientID            string
+	MaxRetries          int
+	SchemaRegistryURL   string
+	LinkUpdatesSubject  string
+	SerializationFormat string
+}
+
 const (
 	envTelegramToken    = "TELEGRAM_TOKEN"
 	envScrapperURL      = "SCRAPPER_URL"
@@ -32,6 +46,17 @@ const (
 	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
 	envDatabaseURL      = "DATABASE_URL"
 	envAccessType       = "ACCESS_TYPE"
+
+	envKafkaBootstrapServers = "KAFKA_BOOTSTRAP_SERVERS"
+	envKafkaLinkUpdatesTopic = "KAFKA_LINK_UPDATES_TOPIC"
+	envKafkaDLQTopic         = "KAFKA_DLQ_TOPIC"
+	envKafkaConsumerGroup    = "KAFKA_CONSUMER_GROUP"
+	envKafkaClientID         = "KAFKA_CLIENT_ID"
+	envKafkaMaxRetries       = "KAFKA_MAX_RETRIES"
+
+	envSchemaRegistryURL        = "SCHEMA_REGISTRY_URL"
+	envKafkaLinkUpdatesSubject  = "KAFKA_LINK_UPDATES_SUBJECT"
+	envKafkaSerializationFormat = "KAFKA_SERIALIZATION_FORMAT"
 )
 
 const (
@@ -40,6 +65,18 @@ const (
 	defaultScrapperGRPCAddr = "localhost:8083"
 	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
 	defaultAccessType       = string(AccessTypeSQL)
+
+	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
+	defaultKafkaLinkUpdatesTopic = "link-updates"
+	defaultKafkaDLQTopic         = "link-updates-dlq"
+	defaultKafkaConsumerGroup    = "bot-link-updates"
+	defaultKafkaClientID         = "bot"
+	defaultKafkaMaxRetries       = 3
+	minKafkaMaxRetries           = 0
+
+	defaultSchemaRegistryURL        = "http://localhost:18085"
+	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
+	defaultKafkaSerializationFormat = "JSON"
 )
 
 func MustLoad() *Config {
@@ -62,6 +99,11 @@ func MustLoad() *Config {
 		log.Fatalf("invalid %s: %s", envAccessType, accessTypeStr)
 	}
 
+	kafkaMaxRetries := getEnvInt(envKafkaMaxRetries, defaultKafkaMaxRetries)
+	if kafkaMaxRetries < minKafkaMaxRetries {
+		log.Fatalf("%s must be at least %d", envKafkaMaxRetries, minKafkaMaxRetries)
+	}
+
 	return &Config{
 		TelegramToken:    token,
 		ScrapperURL:      scrapperURL,
@@ -70,6 +112,17 @@ func MustLoad() *Config {
 		ScrapperGRPCAddr: scrapperGRPCAddr,
 		DatabaseURL:      databaseURL,
 		AccessType:       accessType,
+		Kafka: KafkaConfig{
+			BootstrapServers:    getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
+			LinkUpdatesTopic:    getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
+			DLQTopic:            getEnv(envKafkaDLQTopic, defaultKafkaDLQTopic),
+			ConsumerGroup:       getEnv(envKafkaConsumerGroup, defaultKafkaConsumerGroup),
+			ClientID:            getEnv(envKafkaClientID, defaultKafkaClientID),
+			MaxRetries:          kafkaMaxRetries,
+			SchemaRegistryURL:   getEnv(envSchemaRegistryURL, defaultSchemaRegistryURL),
+			LinkUpdatesSubject:  getEnv(envKafkaLinkUpdatesSubject, defaultKafkaLinkUpdatesSubject),
+			SerializationFormat: getEnv(envKafkaSerializationFormat, defaultKafkaSerializationFormat),
+		},
 	}
 }
 
@@ -89,4 +142,18 @@ func getEnv(key string, defaultValue string) string {
 	}
 
 	return value
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		log.Fatalf("invalid int value for %s: %s", key, value)
+	}
+
+	return parsed
 }

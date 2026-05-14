@@ -1,6 +1,11 @@
 package api
 
-import "time"
+import (
+	"strings"
+	"time"
+)
+
+const DefaultLinkUpdateNoticePrefix = "Обнаружено обновление по ссылке: "
 
 type LinkUpdate struct {
 	ID        int64   `json:"id"`
@@ -14,4 +19,12 @@ type LinkUpdate struct {
 	Preview   string    `json:"preview"`
 
 	Description string `json:"description"`
+}
+
+func (u LinkUpdate) SubscriberNotificationBody() string {
+	if strings.TrimSpace(u.Description) != "" {
+		return u.Description
+	}
+
+	return DefaultLinkUpdateNoticePrefix + u.URL
 }

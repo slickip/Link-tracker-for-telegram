@@ -1,104 +1,160 @@
 # LinkTracker
 
-**LinkTracker** – Telegram-бот, который отслеживает изменения на веб-страницах и оперативно информирует пользователя о них
+**LinkTracker** — Telegram-бот, который отслеживает изменения на веб-страницах и сообщает пользователю о них
 
-В рамках первого домашнего задания реализована базовая обработка команд:
-
-- /start — приветственное сообщение
-- /help — список доступных команд
-- неизвестные команды — сообщение об ошибке
-
-Бот использует лп и автоматически регистрирует команды в Telegram при запуске
-
+Реализованы команды `/start`, `/help`, обработка неизвестных команд, а также асинхронная доставка уведомлений об обновлениях ссылок из сервиса **Scrapper** в **Bot** через **Apache Kafka** (с опциональным HTTP/gRPC), transactional outbox на стороне Scrapper, DLQ и повторные попытки на стороне Bot
 
 ## Требования
 
 - Go 1.24.1
-- Telegram Bot Token 
+- Docker и Docker Compose (для Kafka, PostgreSQL и запуска всего стека)
+- Для интеграционных тестов с Kafka: доступ к Docker API (как у Testcontainers). На Windows при ошибках линковки `confluent-kafka-go` удобнее запускать тесты в **WSL/Linux** или в CI (образ `golang` на Linux)
 
+## Клонирование и зависимости
 
-## Настройка
-
-### 1. Клонировать проект
-
-git clone [<repo-url>](https://gitlab.education.tbank.ru/backend-academy-go-2025/homework-forks/i.poltorakova-73112/link-tracker.git)
+```bash
+git clone <repo-url>
 cd link-tracker
+go mod download
+```
 
+## Файл `.env`
 
-### 2. Создать файл .env
+Создайте файл `.env` в **корне репозитория** (файл уже в `.gitignore`). Минимальные и типичные переменные:
 
-В корне проекта создать файл .env:
+### Обязательные для Bot (локально и в Docker)
 
-TELEGRAM_TOKEN=your_telegram_token_here
+| Переменная | Описание |
+|------------|----------|
+| `TELEGRAM_TOKEN` | Токен Telegram-бота от [@BotFather](https://t.me/BotFather) |
 
+### Bot (локальный `go run`, без Docker)
 
-### 3. Установить зависимости
+| Переменная | Пример | Описание |
+|------------|--------|----------|
+| `TELEGRAM_TOKEN` | — | см. выше |
+| `SCRAPPER_URL` | `http://localhost:8081` | HTTP Scrapper |
+| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/bot_db?sslmode=disable` | БД бота |
+| `ACCESS_TYPE` | `SQL` или `ORM` | тип доступа к БД |
+| `BOT_HTTP_ADDR` | `:8080` | HTTP бота |
+| `BOT_GRPC_ADDR` | `:8082` | gRPC бота |
+| `SCRAPPER_GRPC_ADDR` | `localhost:8083` | gRPC Scrapper |
 
-go mod tidy
+### Kafka (Bot и Scrapper)
 
+Используются, когда Scrapper шлёт уведомления через Kafka (по умолчанию так и задано в коде и в `docker-compose`)
 
-## Запуск
+| Переменная | Пример (хост после `docker compose up`) | Описание |
+|------------|------------------------------------------|----------|
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:19092,localhost:19093,localhost:19094` | Брокеры |
+| `KAFKA_LINK_UPDATES_TOPIC` | `link-updates` | Основной топик событий |
+| `KAFKA_DLQ_TOPIC` | `link-updates-dlq` | Dead Letter Queue (только Bot) |
+| `KAFKA_CONSUMER_GROUP` | `bot-link-updates` | Группа консьюмера (Bot) |
+| `KAFKA_CLIENT_ID` | `bot` / `scrapper` | Идентификатор клиента |
+| `KAFKA_MAX_RETRIES` | `3` | Повторы бизнес-обработки перед DLQ (Bot) |
+| `KAFKA_SERIALIZATION_FORMAT` | `JSON` (по умолчанию) или `AVRO` | Формат значения в Kafka |
+| `SCHEMA_REGISTRY_URL` | `http://localhost:18085` | Нужен при `KAFKA_SERIALIZATION_FORMAT=AVRO` |
+| `KAFKA_LINK_UPDATES_SUBJECT` | `link-updates-value` | Subject в Schema Registry для Avro |
 
-Из корня проекта выполнить:
+### Scrapper (локальный `go run`)
 
-go run ./bot/cmd/bot.go
+| Переменная | Пример | Описание |
+|------------|--------|----------|
+| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/scrapper_db?sslmode=disable` | БД Scrapper (должна отличаться от БД бота) |
+| `ACCESS_TYPE` | `SQL` или `ORM` | |
+| `BOT_HTTP_URL` | `http://localhost:8080` | HTTP бота (при `NOTIFICATION_TRANSPORT=HTTP`) |
+| `BOT_GRPC_ADDR` | `localhost:8082` | gRPC бота (при `NOTIFICATION_TRANSPORT=GRPC`) |
+| `NOTIFICATION_TRANSPORT` | `KAFKA` (по умолчанию), `HTTP` или `GRPC` | Канал нотификаций |
+| `OUTBOX_ENABLED` | `true` | Transactional outbox (имеет смысл при Kafka) |
+| `OUTBOX_PUBLISH_INTERVAL` | `5s` | Период вычитки outbox |
+| `OUTBOX_BATCH_SIZE` | `100` | Размер батча outbox |
 
-После запуска в консоли появится сообщение о старте бота
-
-
-## Проверка
-
-Открыть Telegram, найти своего бота и отправить:
-
-/start
-
-Ожидается приветственное сообщение
+Переменные для GitHub/StackOverflow и интервалов сканирования см. в `scrapper/internal/config/config.go` и `bot/internal/infrastructure/config/config.go`
 
 ## Запуск через Docker Compose
 
-1. В корне проекта создайте файл `.env` (минимум):
-```bash
-TELEGRAM_TOKEN=your_telegram_token_here
-```
+1. Создайте `.env` в корне с минимум:
 
-2. Запустите сервисы:
-```bash
-docker compose up --build
-```
+   ```bash
+   TELEGRAM_TOKEN=your_token_here
+   ```
 
-3. Посмотрите логи:
-```bash
-docker compose logs -f bot scrapper
-```
+2. Запуск:
 
-Остановить:
-```bash
-docker compose down
-```
+   ```bash
+   docker compose up --build
+   ```
 
-Сбросить данные PostgreSQL (осторожно, удалятся volume):
-```bash
-docker compose down -v
-```
+3. Логи:
 
-### Что в `.env` нужно для успешного запуска
+   ```bash
+   docker compose logs -f bot scrapper
+   ```
 
-Для `docker compose` минимум нужен только `TELEGRAM_TOKEN` — остальное задаётся в `docker-compose.yml`.
+4. Остановка и сброс данных Postgres:
 
-## Локальный запуск через `go run`
+   ```bash
+   docker compose down
+   docker compose down -v
+   ```
 
-Пакеты запускаются отдельными entrypoint’ами:
+В compose поднимаются: PostgreSQL, три брокера Kafka + Zookeeper, Schema Registry, **Kafka UI** на [http://localhost:8090](http://localhost:8090), сервис создания топиков, **scrapper** и **bot**
+
+## Локальный запуск (`go run`)
+
+Терминал 1 — Bot:
+
 ```bash
 go run ./bot/cmd/bot.go
+```
+
+Терминал 2 — Scrapper:
+
+```bash
 go run ./scrapper/cmd/scrapper.go
 ```
 
-В `.env` для локального запуска должны быть:
-- `TELEGRAM_TOKEN`
-- `SCRAPPER_URL`
-- `DATABASE_URL` (для *конкретного* процесса: `bot` и `scrapper` должны быть на разных базах, например `.../bot_db` и `.../scrapper_db`)
-- `ACCESS_TYPE` (`SQL` или `ORM`)
+Нужны заполненный `.env`, доступные Postgres и Kafka (если выбран транспорт Kafka), см. таблицы выше
 
-Плюс адреса:
-- Для `bot`: `BOT_HTTP_ADDR`, `BOT_GRPC_ADDR`
-- Для `scrapper`: `SCRAPPER_HTTP_ADDR`, `SCRAPPER_GRPC_ADDR`, `BOT_HTTP_URL`, `BOT_GRPC_ADDR`
+## Kafka: топики и настройки
+
+Топики создаются сервисом **`kafka-init-topics`** в `docker-compose.yml` (скрипт на базе `kafka-topics`).
+
+### `link-updates` (основной поток нотификаций)
+
+- **Partitions: 3** — запас по параллелизму: несколько консьюмеров в одной группе могут читать разные партиции; при росте нагрузки проще масштабировать Bot
+- **Replication factor: 3** — соответствует кластеру из трёх брокеров: допускается отказ одного брокера без потери доступности лидер-реплик при `min.insync.replicas=2`.
+- **`min.insync.replicas=2`** — продюсер с `acks=all` (так настроен код) не получит подтверждение, пока запись не попадёт минимум на две реплики, что согласовано с отказоустойчивостью кластера
+
+### `link-updates-dlq` (Dead Letter Queue)
+
+- Те же **partitions** и **replication factor**, чтобы не было узкого места и DLQ переживал тот же отказ брокера, что и основной топик
+- **`retention.ms=2592000000`** (~30 суток): «ядовитые» или проблемные сообщения дольше доступны для ручного разбора.
+
+Формат полезной нагрузки в основном топике по умолчанию — **JSON** (`pkg/api.LinkUpdate`), как и при синхронном HTTP. Для бонусного режима **Avro** в compose заданы `SCHEMA_REGISTRY_URL` и `KAFKA_SERIALIZATION_FORMAT=AVRO`.
+
+## Интеграционные тесты (Scrapper → Kafka → Bot)
+
+Используется **один** Kafka Testcontainers на пакет `pkg/kafka` (`TestMain`).
+
+Проверка полного JSON-пути продьюсера Scrapper и консьюмера бота (включая текст, как у пользователя в Telegram):
+
+```bash
+go test -tags=integration -timeout 20m -count=1 ./pkg/kafka/... -run TestScraperKafkaProducerToBotConsumerEndToEnd
+```
+
+Все интеграционные тесты Kafka (продьюсер, консьюмер, DLQ, e2e):
+
+```bash
+go test -tags=integration -timeout 20m -count=1 ./pkg/kafka/...
+```
+
+## Проверка в Telegram
+
+После запуска бота отправьте `/start` в чат с ботом — ожидается приветствие.
+
+## Краткая архитектура нотификаций
+
+- Scrapper выбирает транспорт по `NOTIFICATION_TRANSPORT` (по умолчанию **Kafka**).
+- При Kafka и включённом outbox события сначала пишутся в таблицу outbox, затем фоновый паблишер отправляет их в Kafka и помечает запись отправленной
+- Bot подписан на `link-updates`, валидирует сообщение, при ошибках обработки делает повторы, при исчерпании — отправляет в **DLQ**; ошибки десериализации/валидации сразу в DLQ
