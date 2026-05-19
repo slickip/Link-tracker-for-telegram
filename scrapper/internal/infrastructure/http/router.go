@@ -11,7 +11,6 @@ func NewRouter(
 	linkHandler *handlers.LinkHandler,
 	tagHandler *handlers.TagHandler,
 ) http.Handler {
-
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/tg-chat/", func(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +25,7 @@ func NewRouter(
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	})
 
-	mux.HandleFunc("/links", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/list", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			linkHandler.ListLinks(w, r)
