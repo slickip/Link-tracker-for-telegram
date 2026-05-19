@@ -6,9 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
+)
+
+const (
+	tgChatIDHeader = "Tg-Chat-Id"
+	decimalNum     = 10
 )
 
 type ScrapperClient interface {
@@ -33,11 +39,13 @@ func NewScrapperClient(baseURL string) *HTTPscrapperClient {
 }
 
 type addLinkRequest struct {
-	ChatID int64    `json:"chatId"`
-	URL    string   `json:"url"`
-	Tags   []string `json:"tags"`
+	URL  string   `json:"url"`
+	Tags []string `json:"tags"`
 }
 
+type removeLinkRequest struct {
+	URL string `json:"url"`
+}
 type removeByTagRequest struct {
 	ChatID int64  `json:"chatId"`
 	Tag    string `json:"tag"`
@@ -93,9 +101,8 @@ func (c *HTTPscrapperClient) DeleteChat(ctx context.Context, chatID int64) error
 
 func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr string, tags []string) error {
 	body := addLinkRequest{
-		ChatID: chatID,
-		URL:    urlStr,
-		Tags:   tags,
+		URL:  urlStr,
+		Tags: tags,
 	}
 
 	data, err := json.Marshal(body)
@@ -106,15 +113,15 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		c.baseURL+"/links",
+		c.baseURL+"/list",
 		bytes.NewBuffer(data),
 	)
-
 	if err != nil {
 		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	setChatIDHeader(req, chatID)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -133,9 +140,8 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 }
 
 func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlStr string) error {
-	body := addLinkRequest{
-		ChatID: chatID,
-		URL:    urlStr,
+	body := removeLinkRequest{
+		URL: urlStr,
 	}
 
 	data, err := json.Marshal(body)
@@ -146,7 +152,7 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodDelete,
-		c.baseURL+"/links",
+		c.baseURL+"/list",
 		bytes.NewBuffer(data),
 	)
 	if err != nil {
@@ -154,6 +160,7 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	setChatIDHeader(req, chatID)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -172,12 +179,14 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 }
 
 func (c *HTTPscrapperClient) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
-	url := fmt.Sprintf("%s/links?chatId=%d", c.baseURL, chatID)
+	url := c.baseURL + "/list"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	setChatIDHeader(req, chatID)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -247,4 +256,8 @@ func (c *HTTPscrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64,
 	}
 
 	return result.RemovedCount, nil
+}
+
+func setChatIDHeader(req *http.Request, chatID int64) {
+	req.Header.Set(tgChatIDHeader, strconv.FormatInt(chatID, decimalNum))
 }
