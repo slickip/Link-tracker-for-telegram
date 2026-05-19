@@ -231,6 +231,8 @@ services:
         condition: service_completed_successfully
       schema-registry:
         condition: service_healthy
+      valkey-init:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/scrapper_db?sslmode=disable
       ACCESS_TYPE: SQL
@@ -251,6 +253,13 @@ services:
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       KAFKA_LINK_UPDATES_SUBJECT: link-updates-value
       KAFKA_SERIALIZATION_FORMAT: AVRO
+      VALKEY_ENABLED: true
+      VALKEY_ADDRESSES: valkey-node-1:6379,valkey-node-2:6379,valkey-node-3:6379
+      VALKEY_USERNAME: ""
+      VALKEY_PASSWORD: ""
+      VALKEY_TTL: 5m
+      VALKEY_CLIENT_SIDE_CACHE_ENABLED: false
+      VALKEY_CLIENT_SIDE_CACHE_TTL: 30s
     ports:
       - "8081:8081"
       - "8083:8083"
@@ -320,6 +329,116 @@ services:
       timeout: 10s
       retries: 10
       start_period: 20s
+      
+  valkey-node-1:
+    image: valkey/valkey:8.1-alpine
+    container_name: link-tracker-valkey-node-1
+    restart: unless-stopped
+    command:
+      [
+        "valkey-server",
+        "--port", "6379",
+        "--cluster-enabled", "yes",
+        "--cluster-config-file", "nodes.conf",
+        "--cluster-node-timeout", "5000",
+        "--appendonly", "yes",
+        "--protected-mode", "no"
+      ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_node_1_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  valkey-node-2:
+    image: valkey/valkey:8.1-alpine
+    container_name: link-tracker-valkey-node-2
+    restart: unless-stopped
+    command:
+      [
+        "valkey-server",
+        "--port", "6379",
+        "--cluster-enabled", "yes",
+        "--cluster-config-file", "nodes.conf",
+        "--cluster-node-timeout", "5000",
+        "--appendonly", "yes",
+        "--protected-mode", "no"
+      ]
+    ports:
+      - "6380:6379"
+    volumes:
+      - valkey_node_2_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  valkey-node-3:
+    image: valkey/valkey:8.1-alpine
+    container_name: link-tracker-valkey-node-3
+    restart: unless-stopped
+    command:
+      [
+        "valkey-server",
+        "--port", "6379",
+        "--cluster-enabled", "yes",
+        "--cluster-config-file", "nodes.conf",
+        "--cluster-node-timeout", "5000",
+        "--appendonly", "yes",
+        "--protected-mode", "no"
+      ]
+    ports:
+      - "6381:6379"
+    volumes:
+      - valkey_node_3_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  valkey-init:
+    image: valkey/valkey:8.1-alpine
+    container_name: link-tracker-valkey-init
+    depends_on:
+      valkey-node-1:
+        condition: service_healthy
+      valkey-node-2:
+        condition: service_healthy
+      valkey-node-3:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+
+        echo "Waiting for Valkey nodes..."
+
+        until valkey-cli -h valkey-node-1 -p 6379 ping >/dev/null 2>&1; do sleep 1; done
+        until valkey-cli -h valkey-node-2 -p 6379 ping >/dev/null 2>&1; do sleep 1; done
+        until valkey-cli -h valkey-node-3 -p 6379 ping >/dev/null 2>&1; do sleep 1; done
+
+        if valkey-cli -h valkey-node-1 -p 6379 cluster info 2>/dev/null | grep -q "cluster_state:ok"; then
+          echo "Valkey cluster already initialized"
+          exit 0
+        fi
+
+        echo "Creating Valkey cluster..."
+
+        valkey-cli --cluster create \
+          valkey-node-1:6379 \
+          valkey-node-2:6379 \
+          valkey-node-3:6379 \
+          --cluster-replicas 0 \
+          --cluster-yes
+
+        echo "Valkey cluster created"
 
 volumes:
   postgres_data:
@@ -328,3 +447,6 @@ volumes:
   kafka1_data:
   kafka2_data:
   kafka3_data:
+  valkey_node_1_data:
+  valkey_node_2_data:
+  valkey_node_3_data:
