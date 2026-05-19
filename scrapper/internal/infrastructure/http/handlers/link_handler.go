@@ -11,15 +11,15 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
+const tgChatIDHeader = "Tg-Chat-Id"
+
 type AddLinkRequest struct {
-	ChatID int64    `json:"chatId"`
-	URL    string   `json:"url"`
-	Tags   []string `json:"tags"`
+	URL  string   `json:"url"`
+	Tags []string `json:"tags"`
 }
 
 type RemoveLinkRequest struct {
-	ChatID int64  `json:"chatId"`
-	URL    string `json:"url"`
+	URL string `json:"url"`
 }
 
 type LinkHandler struct {
@@ -31,6 +31,12 @@ func NewLinkHandler(service *services.LinkService) *LinkHandler {
 }
 
 func (h *LinkHandler) AddLink(w http.ResponseWriter, r *http.Request) {
+	chatID, err := getChatIDFromRequest(r)
+	if err != nil {
+		http.Error(w, "invalid chat id", http.StatusBadRequest)
+		return
+	}
+
 	var req AddLinkRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -43,7 +49,7 @@ func (h *LinkHandler) AddLink(w http.ResponseWriter, r *http.Request) {
 		Tags: req.Tags,
 	}
 
-	err := h.service.AddLink(r.Context(), req.ChatID, link)
+	err = h.service.AddLink(r.Context(), chatID, link)
 	if err != nil {
 		if errors.Is(err, pkg.ErrChatNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -58,6 +64,12 @@ func (h *LinkHandler) AddLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LinkHandler) RemoveLink(w http.ResponseWriter, r *http.Request) {
+	chatID, err := getChatIDFromRequest(r)
+	if err != nil {
+		http.Error(w, "invalid chat id", http.StatusBadRequest)
+		return
+	}
+
 	var req RemoveLinkRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -65,7 +77,7 @@ func (h *LinkHandler) RemoveLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.RemoveLink(r.Context(), req.ChatID, req.URL)
+	err = h.service.RemoveLink(r.Context(), chatID, req.URL)
 	if err != nil {
 		if errors.Is(err, pkg.ErrChatNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -80,9 +92,7 @@ func (h *LinkHandler) RemoveLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LinkHandler) ListLinks(w http.ResponseWriter, r *http.Request) {
-	chatIDStr := r.URL.Query().Get("chatId")
-
-	chatID, err := strconv.ParseInt(chatIDStr, base10, bitSize64)
+	chatID, err := getChatIDFromRequest(r)
 	if err != nil {
 		http.Error(w, "invalid chat id", http.StatusBadRequest)
 		return
@@ -104,4 +114,10 @@ func (h *LinkHandler) ListLinks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
+}
+
+func getChatIDFromRequest(r *http.Request) (int64, error) {
+	chatIDStr := r.Header.Get(tgChatIDHeader)
+
+	return strconv.ParseInt(chatIDStr, base10, bitSize64)
 }
