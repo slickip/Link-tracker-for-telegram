@@ -118,12 +118,12 @@ const (
 	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
 	defaultKafkaSerializationFormat = "JSON"
 
-	defaultValkeyEnabled                = false
+	defaultValkeyEnabled                = true
 	defaultValkeyAddresses              = "localhost:6379,localhost:6380,localhost:6381"
 	defaultValkeyUsername               = ""
 	defaultValkeyPassword               = ""
 	defaultValkeyTTL                    = 5 * time.Minute
-	defaultValkeyClientSideCacheEnabled = false
+	defaultValkeyClientSideCacheEnabled = true
 	defaultValkeyClientSideCacheTTL     = 30 * time.Second
 )
 

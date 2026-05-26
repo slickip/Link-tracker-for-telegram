@@ -253,13 +253,13 @@ services:
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       KAFKA_LINK_UPDATES_SUBJECT: link-updates-value
       KAFKA_SERIALIZATION_FORMAT: AVRO
-      VALKEY_ENABLED: true
-      VALKEY_ADDRESSES: valkey-node-1:6379,valkey-node-2:6379,valkey-node-3:6379
+      VALKEY_ENABLED: "${VALKEY_ENABLED:-true}"
+      VALKEY_ADDRESSES: "valkey-node-1:6379,valkey-node-2:6379,valkey-node-3:6379"
       VALKEY_USERNAME: ""
       VALKEY_PASSWORD: ""
-      VALKEY_TTL: 5m
-      VALKEY_CLIENT_SIDE_CACHE_ENABLED: false
-      VALKEY_CLIENT_SIDE_CACHE_TTL: 30s
+      VALKEY_TTL: "${VALKEY_TTL:-5m}"
+      VALKEY_CLIENT_SIDE_CACHE_ENABLED: "${VALKEY_CLIENT_SIDE_CACHE_ENABLED:-false}"
+      VALKEY_CLIENT_SIDE_CACHE_TTL: "${VALKEY_CLIENT_SIDE_CACHE_TTL:-30s}"
     ports:
       - "8081:8081"
       - "8083:8083"

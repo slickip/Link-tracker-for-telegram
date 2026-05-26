@@ -76,16 +76,9 @@ func (s *LinkService) RemoveLink(ctx context.Context, chatID int64, url string) 
 }
 
 func (s *LinkService) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
-	exists, err := s.chatRepo.Exists(ctx, chatID)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, pkg.ErrChatNotFound
-	}
-
 	if s.cacheEnabled() {
-		if cachedBody, ok, err := s.listCache.Get(ctx, chatID); err == nil && ok {
+		cachedBody, ok, err := s.listCache.Get(ctx, chatID)
+		if err == nil && ok {
 			var cachedLinks []domain.Link
 			if err := json.Unmarshal(cachedBody, &cachedLinks); err == nil {
 				return cachedLinks, nil
@@ -93,6 +86,14 @@ func (s *LinkService) ListLinks(ctx context.Context, chatID int64) ([]domain.Lin
 
 			s.invalidateListCache(ctx, chatID)
 		}
+	}
+
+	exists, err := s.chatRepo.Exists(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, pkg.ErrChatNotFound
 	}
 
 	links, err := s.linkRepo.List(ctx, chatID)

@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"github.com/valkey-io/valkey-go"
-	"github.com/valkey-io/valkey-go/valkeycompat"
 )
+
+const decimalNum = 10
 
 type ValkeyListCache struct {
 	client valkey.Client
-	rdb    valkeycompat.Cmdable
+
+	clientSideCacheEnabled bool
+	clientSideCacheTTL     time.Duration
 }
 
 func NewValkeyListCache(
@@ -21,9 +24,14 @@ func NewValkeyListCache(
 	username string,
 	password string,
 	clientSideCacheEnabled bool,
+	clientSideCacheTTL time.Duration,
 ) (*ValkeyListCache, error) {
 	if len(addresses) == 0 {
 		return nil, errors.New("valkey addresses must not be empty")
+	}
+
+	if clientSideCacheEnabled && clientSideCacheTTL <= 0 {
+		return nil, errors.New("client side cache ttl must be positive")
 	}
 
 	client, err := valkey.NewClient(valkey.ClientOption{
@@ -37,8 +45,9 @@ func NewValkeyListCache(
 	}
 
 	return &ValkeyListCache{
-		client: client,
-		rdb:    valkeycompat.NewAdapter(client),
+		client:                 client,
+		clientSideCacheEnabled: clientSideCacheEnabled,
+		clientSideCacheTTL:     clientSideCacheTTL,
 	}, nil
 }
 
@@ -47,18 +56,56 @@ func (c *ValkeyListCache) Close() {
 }
 
 func (c *ValkeyListCache) Get(ctx context.Context, chatID int64) ([]byte, bool, error) {
+	if c.clientSideCacheEnabled {
+		return c.getWithClientSideCache(ctx, chatID)
+	}
+
+	return c.getFromValkey(ctx, chatID)
+}
+
+func (c *ValkeyListCache) getFromValkey(ctx context.Context, chatID int64) ([]byte, bool, error) {
 	key := cacheKey(chatID)
 
-	value, err := c.rdb.Get(ctx, key).Result()
-	if err != nil {
-		if errors.Is(err, valkeycompat.Nil) {
+	resp := c.client.Do(ctx, c.client.B().Get().Key(key).Build())
+	if err := resp.Error(); err != nil {
+		if valkey.IsValkeyNil(err) {
 			return nil, false, nil
 		}
 
 		return nil, false, err
 	}
 
-	return []byte(value), true, nil
+	value, err := resp.AsBytes()
+	if err != nil {
+		return nil, false, err
+	}
+
+	return value, true, nil
+}
+
+func (c *ValkeyListCache) getWithClientSideCache(ctx context.Context, chatID int64) ([]byte, bool, error) {
+	key := cacheKey(chatID)
+
+	resp := c.client.DoCache(
+		ctx,
+		c.client.B().Get().Key(key).Cache(),
+		c.clientSideCacheTTL,
+	)
+
+	if err := resp.Error(); err != nil {
+		if valkey.IsValkeyNil(err) {
+			return nil, false, nil
+		}
+
+		return nil, false, err
+	}
+
+	value, err := resp.AsBytes()
+	if err != nil {
+		return nil, false, err
+	}
+
+	return value, true, nil
 }
 
 func (c *ValkeyListCache) Set(ctx context.Context, chatID int64, body []byte, ttl time.Duration) error {
@@ -68,15 +115,26 @@ func (c *ValkeyListCache) Set(ctx context.Context, chatID int64, body []byte, tt
 
 	key := cacheKey(chatID)
 
-	return c.rdb.Set(ctx, key, string(body), ttl).Err()
+	return c.client.Do(
+		ctx,
+		c.client.B().
+			Set().
+			Key(key).
+			Value(string(body)).
+			Ex(ttl).
+			Build(),
+	).Error()
 }
 
 func (c *ValkeyListCache) Delete(ctx context.Context, chatID int64) error {
 	key := cacheKey(chatID)
 
-	return c.rdb.Del(ctx, key).Err()
+	return c.client.Do(
+		ctx,
+		c.client.B().Del().Key(key).Build(),
+	).Error()
 }
 
 func cacheKey(chatID int64) string {
-	return strconv.FormatInt(chatID, 10)
+	return strconv.FormatInt(chatID, decimalNum)
 }
