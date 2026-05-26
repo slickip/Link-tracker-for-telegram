@@ -113,7 +113,7 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		c.baseURL+"/list",
+		c.baseURL+"/link",
 		bytes.NewBuffer(data),
 	)
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodDelete,
-		c.baseURL+"/list",
+		c.baseURL+"/link",
 		bytes.NewBuffer(data),
 	)
 	if err != nil {
