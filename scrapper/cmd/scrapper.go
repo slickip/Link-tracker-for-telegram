@@ -93,6 +93,7 @@ func main() {
 			cfg.Valkey.Username,
 			cfg.Valkey.Password,
 			cfg.Valkey.ClientSideCacheEnabled,
+			cfg.Valkey.ClientSideCacheTTL,
 		)
 		if err != nil {
 			log.Error("failed to initialize Valkey cache, fallback to noop cache", "error", err)
@@ -102,7 +103,7 @@ func main() {
 		}
 	}
 
-	chatService := services.NewChatService(chatRepo)
+	chatService := services.NewChatServiceWithCache(chatRepo, listCache)
 	linkService := services.NewLinkServiceWithCache(linkRepo, chatRepo, listCache, cfg.Valkey.TTL)
 	tagService := services.NewTagService(tagRepo, chatRepo)
 

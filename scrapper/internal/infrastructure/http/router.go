@@ -29,6 +29,13 @@ func NewRouter(
 		switch r.Method {
 		case http.MethodGet:
 			linkHandler.ListLinks(w, r)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/links", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
 		case http.MethodPost:
 			linkHandler.AddLink(w, r)
 		case http.MethodDelete:
