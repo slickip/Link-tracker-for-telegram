@@ -121,7 +121,9 @@ func doGetList(ctx context.Context, client *http.Client, baseURL string, chatID 
 	if err != nil {
 		return Result{Request: "GET /list", Latency: time.Since(start), Err: err}
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	return Result{
 		Request: "GET /list",
@@ -159,7 +161,9 @@ func doPostList(ctx context.Context, client *http.Client, baseURL string, chatID
 	if err != nil {
 		return Result{Request: "POST /links", Latency: time.Since(start), Err: err}
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	return Result{
 		Request: "POST /links",
