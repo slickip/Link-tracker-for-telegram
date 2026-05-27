@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -199,6 +200,13 @@ func setupScrapperRouter() http.Handler {
 	return httpserver.NewRouter(chatHandler, linkHandler, tagHandler)
 }
 
+const tgChatIDHeader = "Tg-Chat-Id"
+
+func withChatID(req *http.Request, chatID int64) *http.Request {
+	req.Header.Set(tgChatIDHeader, strconv.FormatInt(chatID, 10))
+	return req
+}
+
 func TestScrapper_AddAndGetLink(t *testing.T) {
 	router := setupScrapperRouter()
 
@@ -211,9 +219,8 @@ func TestScrapper_AddAndGetLink(t *testing.T) {
 	}
 
 	body := map[string]any{
-		"chatId": 1,
-		"url":    "https://github.com/golang/go",
-		"tags":   []string{"test"},
+		"url":  "https://github.com/golang/go",
+		"tags": []string{"test"},
 	}
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -222,6 +229,7 @@ func TestScrapper_AddAndGetLink(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/links", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -229,7 +237,8 @@ func TestScrapper_AddAndGetLink(t *testing.T) {
 		t.Fatalf("expected 200 for add link, got %d", w.Code)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/links?chatId=1", nil)
+	req = httptest.NewRequest(http.MethodGet, "/list", nil)
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -254,9 +263,8 @@ func TestScrapper_AddAndDeleteLink(t *testing.T) {
 	}
 
 	body := map[string]any{
-		"chatId": 1,
-		"url":    "https://github.com/golang/go",
-		"tags":   []string{"test"},
+		"url":  "https://github.com/golang/go",
+		"tags": []string{"test"},
 	}
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -265,6 +273,7 @@ func TestScrapper_AddAndDeleteLink(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/links", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -272,8 +281,17 @@ func TestScrapper_AddAndDeleteLink(t *testing.T) {
 		t.Fatalf("expected 200 for add link, got %d", w.Code)
 	}
 
-	req = httptest.NewRequest(http.MethodDelete, "/links", bytes.NewBuffer(data))
+	deleteBody := map[string]any{
+		"url": "https://github.com/golang/go",
+	}
+	deleteData, err := json.Marshal(deleteBody)
+	if err != nil {
+		t.Fatalf("failed to marshal delete body: %v", err)
+	}
+
+	req = httptest.NewRequest(http.MethodDelete, "/links", bytes.NewBuffer(deleteData))
 	req.Header.Set("Content-Type", "application/json")
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -281,7 +299,8 @@ func TestScrapper_AddAndDeleteLink(t *testing.T) {
 		t.Fatalf("expected 200 for delete link, got %d", w.Code)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/links?chatId=1", nil)
+	req = httptest.NewRequest(http.MethodGet, "/list", nil)
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -306,9 +325,8 @@ func TestScrapper_DeleteLinkFromNonExistingChat(t *testing.T) {
 	}
 
 	body := map[string]any{
-		"chatId": 1,
-		"url":    "https://github.com/golang/go",
-		"tags":   []string{"test"},
+		"url":  "https://github.com/golang/go",
+		"tags": []string{"test"},
 	}
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -317,6 +335,7 @@ func TestScrapper_DeleteLinkFromNonExistingChat(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/links", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -324,17 +343,17 @@ func TestScrapper_DeleteLinkFromNonExistingChat(t *testing.T) {
 		t.Fatalf("expected 200 for add link, got %d", w.Code)
 	}
 
-	wrongBody := map[string]any{
-		"chatId": 999,
-		"url":    "https://github.com/golang/go",
+	deleteBody := map[string]any{
+		"url": "https://github.com/golang/go",
 	}
-	wrongData, err := json.Marshal(wrongBody)
+	deleteData, err := json.Marshal(deleteBody)
 	if err != nil {
-		t.Fatalf("failed to marshal wrong body: %v", err)
+		t.Fatalf("failed to marshal delete body: %v", err)
 	}
 
-	req = httptest.NewRequest(http.MethodDelete, "/links", bytes.NewBuffer(wrongData))
+	req = httptest.NewRequest(http.MethodDelete, "/links", bytes.NewBuffer(deleteData))
 	req.Header.Set("Content-Type", "application/json")
+	withChatID(req, 999)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -342,7 +361,8 @@ func TestScrapper_DeleteLinkFromNonExistingChat(t *testing.T) {
 		t.Fatalf("expected non-200 when deleting from non-existing chat")
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/links?chatId=1", nil)
+	req = httptest.NewRequest(http.MethodGet, "/list", nil)
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -367,8 +387,7 @@ func TestScrapper_AddLinkToNonExistingChat(t *testing.T) {
 	}
 
 	body := map[string]any{
-		"chatId": 2,
-		"url":    "https://github.com/golang/go",
+		"url":  "https://github.com/golang/go",
 		"tags":   []string{"test"},
 	}
 	data, err := json.Marshal(body)
@@ -378,6 +397,7 @@ func TestScrapper_AddLinkToNonExistingChat(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/links", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	withChatID(req, 2)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -406,9 +426,8 @@ func TestScrapper_DeletedChatCannotAddLinks(t *testing.T) {
 	}
 
 	body := map[string]any{
-		"chatId": 1,
-		"url":    "https://github.com/golang/go",
-		"tags":   []string{"test"},
+		"url":  "https://github.com/golang/go",
+		"tags": []string{"test"},
 	}
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -417,6 +436,7 @@ func TestScrapper_DeletedChatCannotAddLinks(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/links", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	withChatID(req, 1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
