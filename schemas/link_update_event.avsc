@@ -1,0 +1,55 @@
+{
+  "type": "record",
+  "name": "LinkUpdateEvent",
+  "namespace": "linktracker.notification",
+  "fields": [
+    {
+      "name": "id",
+      "type": "long",
+      "doc": "ID ссылки"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "doc": "Ссылка"
+    },
+    {
+      "name": "tgChatIds",
+      "type": {
+        "type": "array",
+        "items": "long"
+      },
+      "doc": "ID чатов Telegram"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "doc": "Тип обновления"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "doc": "Заголовок обновления"
+    },
+    {
+      "name": "username",
+      "type": "string",
+      "doc": "Автор обновления"
+    },
+    {
+      "name": "createdAt",
+      "type": "string",
+      "doc": "Время создания обновления"
+    },
+    {
+      "name": "preview",
+      "type": "string",
+      "doc": "Краткое описание"
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "doc": "Полное описание уведомления"
+    }
+  ]
+}

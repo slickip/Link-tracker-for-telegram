@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"net"
@@ -21,6 +22,7 @@ import (
 	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http/handlers"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/orm/repositories"
 	sqlrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/sql/repositories"
 	domainrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
@@ -37,6 +39,7 @@ func main() {
 		linkRepo     domainrepo.LinkRepository
 		trackingRepo domainrepo.TrackingRepository
 		tagRepo      domainrepo.TagRepository
+		outboxRepo   domainrepo.OutboxRepository
 	)
 
 	switch cfg.AccessType {
@@ -56,6 +59,7 @@ func main() {
 		linkRepo = sqlrepo.NewSQLChatLinkRepository(sqlDB, log)
 		trackingRepo = sqlrepo.NewSQLTrackingRepository(sqlDB, log)
 		tagRepo = sqlrepo.NewSQLTagRepository(sqlDB, log)
+		outboxRepo = sqlrepo.NewSQLOutboxRepository(sqlDB, log)
 
 		log.Info("scrapper repositories initialized", "access_type", "SQL")
 
@@ -70,6 +74,7 @@ func main() {
 		linkRepo = ormrepo.NewORMChatLinkRepository(gormDB)
 		trackingRepo = ormrepo.NewGormTrackingRepository(gormDB)
 		tagRepo = ormrepo.NewORMTagRepository(gormDB)
+		outboxRepo = ormrepo.NewORMOutboxRepository(gormDB)
 
 		log.Info("scrapper repositories initialized", "access_type", "ORM")
 
@@ -82,14 +87,53 @@ func main() {
 	linkService := services.NewLinkService(linkRepo, chatRepo)
 	tagService := services.NewTagService(tagRepo, chatRepo)
 
-	httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL)
+	var (
+		botClient          clients.BotClient
+		linkUpdateProducer *kafka.ConfluentLinkUpdateProducer
+	)
+	switch cfg.NotificationTransport {
+	case config.NotificationTransportKafka:
+		producer, err := kafka.NewConfluentLinkUpdateProducer(
+			kafka.LinkUpdateProducerConfig{
+				BootstrapServers:    cfg.Kafka.BootstrapServers,
+				Topic:               cfg.Kafka.LinkUpdatesTopic,
+				ClientID:            cfg.Kafka.ClientID,
+				SchemaRegistryURL:   cfg.Kafka.SchemaRegistryURL,
+				LinkUpdatesSubject:  cfg.Kafka.LinkUpdatesSubject,
+				SerializationFormat: cfg.Kafka.SerializationFormat,
+			},
+		)
+		if err != nil {
+			log.Error("failed to init kafka link update producer", "error", err)
+			os.Exit(1)
+		}
 
-	var botClient clients.BotClient = httpBotClient
-	grpcBotClient, err := clients.NewGRPCBotClient(cfg.BotGRPCAddr)
-	if err != nil {
-		log.Warn("failed to init bot grpc client, fallback to http only", "error", err)
-	} else {
-		botClient = clients.NewFallbackBotClient(httpBotClient, grpcBotClient, log)
+		linkUpdateProducer = producer
+		defer linkUpdateProducer.Close()
+
+		botClient = clients.NewKafkaBotClient(linkUpdateProducer)
+		log.Info("bot notification transport initialized", "transport", "KAFKA")
+
+	case config.NotificationTransportHTTP:
+		botClient = clients.NewHTTPBotClient(cfg.BotHTTPURL)
+		log.Info("bot notification transport initialized", "transport", "HTTP")
+
+	case config.NotificationTransportGRPC:
+		httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL)
+
+		grpcBotClient, err := clients.NewGRPCBotClient(cfg.BotGRPCAddr)
+		if err != nil {
+			log.Warn("failed to init bot grpc client, fallback to http only", "error", err)
+			botClient = httpBotClient
+		} else {
+			botClient = clients.NewFallbackBotClient(httpBotClient, grpcBotClient, log)
+		}
+
+		log.Info("bot notification transport initialized", "transport", "GRPC")
+
+	default:
+		log.Error("unknown notification transport", "transport", cfg.NotificationTransport)
+		os.Exit(1)
 	}
 
 	githubClient := clients.NewGitHubClient(clients.GitHubClientConfig{
@@ -116,6 +160,31 @@ func main() {
 		cfg.LinkBatchSize,
 		cfg.WorkerCount,
 	)
+	if cfg.NotificationTransport == config.NotificationTransportKafka && cfg.Outbox.Enabled {
+		if outboxRepo == nil {
+			log.Error("outbox repository is not initialized")
+			os.Exit(1)
+		}
+
+		if linkUpdateProducer == nil {
+			log.Error("kafka producer is not initialized")
+			os.Exit(1)
+		}
+
+		scheduler.EnableOutbox(outboxRepo, cfg.Kafka.LinkUpdatesTopic)
+
+		outboxPublisher := services.NewOutboxPublisher(
+			outboxRepo,
+			linkUpdateProducer,
+			log,
+			cfg.Outbox.PublishInterval,
+			cfg.Outbox.BatchSize,
+		)
+
+		outboxPublisher.Start(context.Background())
+
+		log.Info("transactional outbox enabled")
+	}
 	scheduler.Start()
 
 	go func() {
