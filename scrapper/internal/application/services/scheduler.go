@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,6 +28,7 @@ const (
 	processingErrorType     = "processing_error"
 	processingErrorTitle    = "Ошибка обработки ссылки"
 	processingErrorUsername = "scrapper"
+	decimalBase             = 10
 )
 
 type Scheduler struct {
@@ -41,6 +44,10 @@ type Scheduler struct {
 	workerCount      int
 	failureMu        sync.Mutex
 	reportedFailures map[int64]string
+
+	outboxRepo    repositories.OutboxRepository
+	outboxTopic   string
+	outboxEnabled bool
 }
 
 func NewScheduler(
@@ -252,7 +259,7 @@ func (s *Scheduler) processLink(ctx context.Context, link domain.Link) error {
 		return nil
 	}
 
-	if newUpdatedAt.After(link.LastUpdatedAt) {
+	if !s.outboxEnabled && newUpdatedAt.After(link.LastUpdatedAt) {
 		if err := s.repo.UpdateLastUpdated(ctx, link.ID, newUpdatedAt); err != nil {
 			return err
 		}
@@ -264,8 +271,14 @@ func (s *Scheduler) processLink(ctx context.Context, link domain.Link) error {
 	}
 
 	if len(subscribers) == 0 {
+		if s.outboxEnabled && newUpdatedAt.After(link.LastUpdatedAt) {
+			return s.repo.UpdateLastUpdated(ctx, link.ID, newUpdatedAt)
+		}
+
 		return nil
 	}
+
+	outboxMessages := make([]domain.OutboxMessage, 0, len(updates))
 
 	for _, update := range updates {
 		dto := api.LinkUpdate{
@@ -282,9 +295,32 @@ func (s *Scheduler) processLink(ctx context.Context, link domain.Link) error {
 			Description: formatUpdateDescription(update),
 		}
 
+		if s.outboxEnabled {
+			message, err := makeOutboxMessage(s.outboxTopic, dto)
+			if err != nil {
+				return err
+			}
+
+			outboxMessages = append(outboxMessages, message)
+			continue
+		}
+
 		if err := s.botClient.SendUpdate(ctx, dto); err != nil {
 			return err
 		}
+	}
+
+	if s.outboxEnabled {
+		if newUpdatedAt.After(link.LastUpdatedAt) {
+			return s.outboxRepo.SaveLinkUpdateOutbox(
+				ctx,
+				link.ID,
+				newUpdatedAt,
+				outboxMessages,
+			)
+		}
+
+		return s.outboxRepo.SaveOutboxMessages(ctx, outboxMessages)
 	}
 
 	return nil
@@ -357,4 +393,35 @@ func (s *Scheduler) clearReportedFailure(linkID int64) {
 	defer s.failureMu.Unlock()
 
 	delete(s.reportedFailures, linkID)
+}
+
+func (s *Scheduler) EnableOutbox(
+	outboxRepo repositories.OutboxRepository,
+	topic string,
+) {
+	s.outboxRepo = outboxRepo
+	s.outboxTopic = topic
+	s.outboxEnabled = outboxRepo != nil && topic != ""
+}
+
+func makeOutboxMessage(
+	topic string,
+	update api.LinkUpdate,
+) (domain.OutboxMessage, error) {
+	payload, err := json.Marshal(update)
+	if err != nil {
+		return domain.OutboxMessage{}, err
+	}
+
+	now := time.Now().UTC()
+
+	return domain.OutboxMessage{
+		Topic:      topic,
+		MessageKey: strconv.FormatInt(update.ID, decimalBase),
+		Payload:    payload,
+		Status:     domain.OutboxStatusPending,
+		Attempts:   0,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}, nil
 }

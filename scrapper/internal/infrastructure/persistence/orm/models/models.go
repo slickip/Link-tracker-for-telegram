@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/datatypes"
 )
 
 type ChatModel struct {
@@ -49,4 +51,21 @@ type SubscriptionTagModel struct {
 
 func (SubscriptionTagModel) TableName() string {
 	return "subscription_tags"
+}
+
+type OutboxMessageModel struct {
+	ID         int64          `gorm:"column:id;primaryKey"`
+	Topic      string         `gorm:"column:topic;not null"`
+	MessageKey string         `gorm:"column:message_key;not null"`
+	Payload    datatypes.JSON `gorm:"column:payload;type:jsonb;not null"`
+	Status     string         `gorm:"column:status;not null"`
+	Attempts   int            `gorm:"column:attempts;not null"`
+	LastError  *string        `gorm:"column:last_error"`
+	CreatedAt  time.Time      `gorm:"column:created_at;not null"`
+	UpdatedAt  time.Time      `gorm:"column:updated_at;not null"`
+	SentAt     *time.Time     `gorm:"column:sent_at"`
+}
+
+func (OutboxMessageModel) TableName() string {
+	return "outbox_messages"
 }

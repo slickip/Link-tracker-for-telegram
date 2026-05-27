@@ -33,3 +33,11 @@ type TrackingRepository interface {
 	GetTrackedLinksBatch(ctx context.Context, limit, offset int) ([]domain.Link, error)
 	UpdateLastUpdated(ctx context.Context, linkID int64, t time.Time) error
 }
+
+type OutboxRepository interface {
+	SaveLinkUpdateOutbox(ctx context.Context, linkID int64, newUpdatedAt time.Time, messages []domain.OutboxMessage) error
+	SaveOutboxMessages(ctx context.Context, messages []domain.OutboxMessage) error
+	GetPendingMessages(ctx context.Context, limit int) ([]domain.OutboxMessage, error)
+	MarkAsSent(ctx context.Context, id int64) error
+	MarkPublishFailed(ctx context.Context, id int64, err error) error
+}

@@ -52,6 +52,170 @@ services:
         "up"
       ]
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: link-tracker-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+
+  kafka1:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: link-tracker-kafka1
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "19092:19092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092,PLAINTEXT_HOST://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka1_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  kafka2:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: link-tracker-kafka2
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "19093:19093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:19093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9092,PLAINTEXT_HOST://localhost:19093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka2_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  kafka3:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: link-tracker-kafka3
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "19094:19094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:19094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:9092,PLAINTEXT_HOST://localhost:19094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka3_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  kafka-init-topics:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: link-tracker-kafka-init-topics
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -e
+
+        echo "Waiting for Kafka..."
+        until kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --list >/dev/null 2>&1; do
+          echo "Kafka is not ready yet..."
+          sleep 2
+        done
+
+        echo "Creating topic link-updates..."
+        kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --create --if-not-exists --topic link-updates --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+
+        echo "Creating topic link-updates-dlq..."
+        kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --create --if-not-exists --topic link-updates-dlq --partitions 3 --replication-factor 3 --config min.insync.replicas=2 --config retention.ms=2592000000
+
+        echo "Kafka topics:"
+        kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --list
+
+        echo "Topic link-updates description:"
+        kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --describe --topic link-updates
+
+        echo "Topic link-updates-dlq description:"
+        kafka-topics --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --describe --topic link-updates-dlq
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: link-tracker-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:9092,kafka2:9092,kafka3:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+
   scrapper:
     build:
       context: .
@@ -63,13 +227,30 @@ services:
         condition: service_healthy
       migrate-scrapper:
         condition: service_completed_successfully
+      kafka-init-topics:
+        condition: service_completed_successfully
+      schema-registry:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/scrapper_db?sslmode=disable
       ACCESS_TYPE: SQL
+
       SCRAPPER_HTTP_ADDR: :8081
       SCRAPPER_GRPC_ADDR: :8083
+
       BOT_HTTP_URL: http://bot:8080
       BOT_GRPC_ADDR: bot:8082
+
+      NOTIFICATION_TRANSPORT: KAFKA
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9092,kafka3:9092
+      KAFKA_LINK_UPDATES_TOPIC: link-updates
+      KAFKA_CLIENT_ID: scrapper
+      OUTBOX_ENABLED: true
+      OUTBOX_PUBLISH_INTERVAL: 5s
+      OUTBOX_BATCH_SIZE: 100
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_LINK_UPDATES_SUBJECT: link-updates-value
+      KAFKA_SERIALIZATION_FORMAT: AVRO
     ports:
       - "8081:8081"
       - "8083:8083"
@@ -85,19 +266,65 @@ services:
         condition: service_healthy
       migrate-bot:
         condition: service_completed_successfully
+      kafka-init-topics:
+        condition: service_completed_successfully
       scrapper:
         condition: service_started
+      schema-registry:
+        condition: service_healthy
     environment:
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+
       SCRAPPER_URL: http://scrapper:8081
       SCRAPPER_GRPC_ADDR: scrapper:8083
+
       BOT_HTTP_ADDR: :8080
       BOT_GRPC_ADDR: :8082
+
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/bot_db?sslmode=disable
       ACCESS_TYPE: SQL
+
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9092,kafka3:9092
+      KAFKA_LINK_UPDATES_TOPIC: link-updates
+      KAFKA_CONSUMER_GROUP: bot-link-updates
+      KAFKA_CLIENT_ID: bot
+      KAFKA_DLQ_TOPIC: link-updates-dlq
+      KAFKA_MAX_RETRIES: 3
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_LINK_UPDATES_SUBJECT: link-updates-value
+      KAFKA_SERIALIZATION_FORMAT: AVRO
     ports:
       - "8080:8080"
       - "8082:8082"
 
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    container_name: link-tracker-schema-registry
+    restart: unless-stopped
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    ports:
+      - "18085:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka1:9092,PLAINTEXT://kafka2:9092,PLAINTEXT://kafka3:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/subjects || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
 volumes:
   postgres_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka1_data:
+  kafka2_data:
+  kafka3_data:
