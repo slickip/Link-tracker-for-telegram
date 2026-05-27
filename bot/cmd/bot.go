@@ -17,12 +17,12 @@ import (
 	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	dbpkgorm "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/orm/database"
 	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/orm/repositories"
 	dbpkgsql "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/sql/database"
 	sqlrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/sql/repositories"
 	botpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/bot"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -44,7 +44,7 @@ func main() {
 		log.Warn("failed to set bot commands", "error", err)
 	}
 
-	httpScrapperClient := clients.NewScrapperClient(cfg.ScrapperURL)
+	httpScrapperClient := clients.NewScrapperClient(cfg.ScrapperURL, cfg.ScrapperHTTPTimeout)
 
 	var scrapperClient clients.ScrapperClient = httpScrapperClient
 

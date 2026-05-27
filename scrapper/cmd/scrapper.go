@@ -135,11 +135,11 @@ func main() {
 		log.Info("bot notification transport initialized", "transport", "KAFKA")
 
 	case config.NotificationTransportHTTP:
-		botClient = clients.NewHTTPBotClient(cfg.BotHTTPURL)
+		botClient = clients.NewHTTPBotClient(cfg.BotHTTPURL, cfg.ExternalAPITimeout)
 		log.Info("bot notification transport initialized", "transport", "HTTP")
 
 	case config.NotificationTransportGRPC:
-		httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL)
+		httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL, cfg.ExternalAPITimeout)
 
 		grpcBotClient, err := clients.NewGRPCBotClient(cfg.BotGRPCAddr)
 		if err != nil {

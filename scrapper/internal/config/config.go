@@ -11,12 +11,13 @@ import (
 )
 
 type Config struct {
-	BotHTTPURL       string
-	BotGRPCAddr      string
-	ScrapperHTTPAddr string
-	ScrapperGRPCAddr string
-	DatabaseURL      string
-	AccessType       AccessType
+	BotHTTPURL          string
+	BotGRPCAddr         string
+	ScrapperHTTPAddr    string
+	ScrapperGRPCAddr    string
+	ScrapperHTTPTimeout time.Duration
+	DatabaseURL         string
+	AccessType          AccessType
 
 	NotificationTransport NotificationTransport
 	Kafka                 KafkaConfig
@@ -44,12 +45,13 @@ const (
 )
 
 const (
-	envBotHTTPURL       = "BOT_HTTP_URL"
-	envBotGRPCAddr      = "BOT_GRPC_ADDR"
-	envScrapperHTTPAddr = "SCRAPPER_HTTP_ADDR"
-	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
-	envDatabaseURL      = "DATABASE_URL"
-	envAccessType       = "ACCESS_TYPE"
+	envBotHTTPURL          = "BOT_HTTP_URL"
+	envBotGRPCAddr         = "BOT_GRPC_ADDR"
+	envScrapperHTTPAddr    = "SCRAPPER_HTTP_ADDR"
+	envScrapperGRPCAddr    = "SCRAPPER_GRPC_ADDR"
+	envScrapperHTTPTimeout = "SCRAPPER_HTTP_TIMEOUT"
+	envDatabaseURL         = "DATABASE_URL"
+	envAccessType          = "ACCESS_TYPE"
 
 	envCheckInterval = "CHECK_INTERVAL"
 	envLinkBatchSize = "LINK_BATCH_SIZE"
@@ -86,12 +88,13 @@ const (
 )
 
 const (
-	defaultBotHTTPURL       = "http://localhost:8080"
-	defaultBotGRPCAddr      = "localhost:8082"
-	defaultScrapperHTTPAddr = ":8081"
-	defaultScrapperGRPCAddr = ":8083"
-	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
-	defaultAccessType       = string(AccessTypeSQL)
+	defaultBotHTTPURL          = "http://localhost:8080"
+	defaultBotGRPCAddr         = "localhost:8082"
+	defaultScrapperHTTPAddr    = ":8081"
+	defaultScrapperGRPCAddr    = ":8083"
+	defaultScrapperHTTPTimeout = 5 * time.Second
+	defaultDatabaseURL         = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
+	defaultAccessType          = string(AccessTypeSQL)
 
 	defaultCheckInterval = 30 * time.Second
 	defaultLinkBatchSize = 100
@@ -245,12 +248,13 @@ func MustLoad() *Config {
 	}
 
 	return &Config{
-		BotHTTPURL:       botHTTPURL,
-		BotGRPCAddr:      botGRPCAddr,
-		ScrapperHTTPAddr: scrapperHTTPAddr,
-		ScrapperGRPCAddr: scrapperGRPCAddr,
-		DatabaseURL:      databaseURL,
-		AccessType:       accessType,
+		BotHTTPURL:          botHTTPURL,
+		BotGRPCAddr:         botGRPCAddr,
+		ScrapperHTTPAddr:    scrapperHTTPAddr,
+		ScrapperGRPCAddr:    scrapperGRPCAddr,
+		ScrapperHTTPTimeout: getEnvDuration(envScrapperHTTPTimeout, defaultScrapperHTTPTimeout),
+		DatabaseURL:         databaseURL,
+		AccessType:          accessType,
 
 		NotificationTransport: notificationTransport,
 		Kafka:                 kafkaConfig,

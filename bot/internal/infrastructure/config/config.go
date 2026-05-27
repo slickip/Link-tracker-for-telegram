@@ -4,19 +4,21 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	TelegramToken    string
-	ScrapperURL      string
-	BotHTTPAddr      string
-	BotGRPCAddr      string
-	ScrapperGRPCAddr string
-	DatabaseURL      string
-	AccessType       AccessType
-	Kafka            KafkaConfig
+	TelegramToken       string
+	ScrapperURL         string
+	ScrapperHTTPTimeout time.Duration
+	BotHTTPAddr         string
+	BotGRPCAddr         string
+	ScrapperGRPCAddr    string
+	DatabaseURL         string
+	AccessType          AccessType
+	Kafka               KafkaConfig
 }
 
 type AccessType string
@@ -39,13 +41,14 @@ type KafkaConfig struct {
 }
 
 const (
-	envTelegramToken    = "TELEGRAM_TOKEN"
-	envScrapperURL      = "SCRAPPER_URL"
-	envBotHTTPAddr      = "BOT_HTTP_ADDR"
-	envBotGRPCAddr      = "BOT_GRPC_ADDR"
-	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
-	envDatabaseURL      = "DATABASE_URL"
-	envAccessType       = "ACCESS_TYPE"
+	envTelegramToken       = "TELEGRAM_TOKEN"
+	envScrapperURL         = "SCRAPPER_URL"
+	envScrapperHTTPTimeout = "SCRAPPER_HTTP_TIMEOUT"
+	envBotHTTPAddr         = "BOT_HTTP_ADDR"
+	envBotGRPCAddr         = "BOT_GRPC_ADDR"
+	envScrapperGRPCAddr    = "SCRAPPER_GRPC_ADDR"
+	envDatabaseURL         = "DATABASE_URL"
+	envAccessType          = "ACCESS_TYPE"
 
 	envKafkaBootstrapServers = "KAFKA_BOOTSTRAP_SERVERS"
 	envKafkaLinkUpdatesTopic = "KAFKA_LINK_UPDATES_TOPIC"
@@ -60,11 +63,12 @@ const (
 )
 
 const (
-	defaultBotHTTPAddr      = ":8080"
-	defaultBotGRPCAddr      = "localhost:8082"
-	defaultScrapperGRPCAddr = "localhost:8083"
-	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
-	defaultAccessType       = string(AccessTypeSQL)
+	defaultBotHTTPAddr         = ":8080"
+	defaultBotGRPCAddr         = "localhost:8082"
+	defaultScrapperGRPCAddr    = "localhost:8083"
+	defaultScrapperHTTPTimeout = 5 * time.Second
+	defaultDatabaseURL         = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
+	defaultAccessType          = string(AccessTypeSQL)
 
 	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
 	defaultKafkaLinkUpdatesTopic = "link-updates"
@@ -86,6 +90,7 @@ func MustLoad() *Config {
 
 	token := getRequiredEnv(envTelegramToken)
 	scrapperURL := getRequiredEnv(envScrapperURL)
+	scrapperHTTPTimeout := getEnvDuration(envScrapperHTTPTimeout, defaultScrapperHTTPTimeout)
 
 	botHTTPAddr := getEnv(envBotHTTPAddr, defaultBotHTTPAddr)
 	botGRPCAddr := getEnv(envBotGRPCAddr, defaultBotGRPCAddr)
@@ -105,13 +110,14 @@ func MustLoad() *Config {
 	}
 
 	return &Config{
-		TelegramToken:    token,
-		ScrapperURL:      scrapperURL,
-		BotHTTPAddr:      botHTTPAddr,
-		BotGRPCAddr:      botGRPCAddr,
-		ScrapperGRPCAddr: scrapperGRPCAddr,
-		DatabaseURL:      databaseURL,
-		AccessType:       accessType,
+		TelegramToken:       token,
+		ScrapperURL:         scrapperURL,
+		ScrapperHTTPTimeout: scrapperHTTPTimeout,
+		BotHTTPAddr:         botHTTPAddr,
+		BotGRPCAddr:         botGRPCAddr,
+		ScrapperGRPCAddr:    scrapperGRPCAddr,
+		DatabaseURL:         databaseURL,
+		AccessType:          accessType,
 		Kafka: KafkaConfig{
 			BootstrapServers:    getEnv(envKafkaBootstrapServers, defaultKafkaBootstrapServers),
 			LinkUpdatesTopic:    getEnv(envKafkaLinkUpdatesTopic, defaultKafkaLinkUpdatesTopic),
@@ -153,6 +159,24 @@ func getEnvInt(key string, defaultValue int) int {
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		log.Fatalf("invalid int value for %s: %s", key, value)
+	}
+
+	return parsed
+}
+
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		log.Fatalf("invalid duration value for %s: %s", key, value)
+	}
+
+	if parsed <= 0 {
+		log.Fatalf("%s must be positive", key)
 	}
 
 	return parsed

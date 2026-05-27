@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
@@ -29,12 +30,18 @@ type ScrapperClient interface {
 type HTTPscrapperClient struct {
 	baseURL string
 	client  *http.Client
+	timeout time.Duration
 }
 
-func NewScrapperClient(baseURL string) *HTTPscrapperClient {
+func NewScrapperClient(baseURL string, timeout time.Duration) *HTTPscrapperClient {
+	timeout = normalizeTimeout(timeout)
+
 	return &HTTPscrapperClient{
 		baseURL: baseURL,
-		client:  &http.Client{},
+		client: &http.Client{
+			Timeout: timeout,
+		},
+		timeout: timeout,
 	}
 }
 
@@ -53,10 +60,11 @@ type removeByTagRequest struct {
 func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) error {
 	url := fmt.Sprintf("%s/tg-chat/%d", c.baseURL, chatID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	req, cancel, err := newRequestWithTimeout(ctx, c.timeout, http.MethodPost, url, nil)
 	if err != nil {
 		return err
 	}
+	defer cancel()
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -77,10 +85,11 @@ func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) err
 func (c *HTTPscrapperClient) DeleteChat(ctx context.Context, chatID int64) error {
 	url := fmt.Sprintf("%s/tg-chat/%d", c.baseURL, chatID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, cancel, err := newRequestWithTimeout(ctx, c.timeout, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
 	}
+	defer cancel()
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -109,8 +118,9 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(
+	req, cancel, err := newRequestWithTimeout(
 		ctx,
+		c.timeout,
 		http.MethodPost,
 		c.baseURL+"/links",
 		bytes.NewBuffer(data),
@@ -118,6 +128,7 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 	if err != nil {
 		return err
 	}
+	defer cancel()
 
 	req.Header.Set("Content-Type", "application/json")
 	setChatIDHeader(req, chatID)
@@ -148,8 +159,9 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(
+	req, cancel, err := newRequestWithTimeout(
 		ctx,
+		c.timeout,
 		http.MethodDelete,
 		c.baseURL+"/links",
 		bytes.NewBuffer(data),
@@ -157,6 +169,7 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 	if err != nil {
 		return err
 	}
+	defer cancel()
 
 	req.Header.Set("Content-Type", "application/json")
 	setChatIDHeader(req, chatID)
@@ -180,10 +193,11 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 func (c *HTTPscrapperClient) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
 	url := c.baseURL + "/list"
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, cancel, err := newRequestWithTimeout(ctx, c.timeout, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+	defer cancel()
 
 	setChatIDHeader(req, chatID)
 
@@ -220,8 +234,9 @@ func (c *HTTPscrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64,
 		return 0, err
 	}
 
-	req, err := http.NewRequestWithContext(
+	req, cancel, err := newRequestWithTimeout(
 		ctx,
+		c.timeout,
 		http.MethodDelete,
 		c.baseURL+"/links/by-tag",
 		bytes.NewBuffer(data),
@@ -229,6 +244,7 @@ func (c *HTTPscrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64,
 	if err != nil {
 		return 0, err
 	}
+	defer cancel()
 
 	req.Header.Set("Content-Type", "application/json")
 	setChatIDHeader(req, chatID)

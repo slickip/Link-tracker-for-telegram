@@ -56,6 +56,7 @@ type StackOverflowClient struct {
 	client  *http.Client
 	baseURL string
 	site    string
+	timeout time.Duration
 	perPage int
 }
 
@@ -121,6 +122,7 @@ func NewStackOverflowClient(cfg StackOverflowClientConfig) *StackOverflowClient 
 		},
 		baseURL: baseURL,
 		site:    site,
+		timeout: timeout,
 		perPage: perPage,
 	}
 }
@@ -316,10 +318,11 @@ func (c *StackOverflowClient) buildURL(path string, params map[string]string) (s
 }
 
 func (c *StackOverflowClient) getJSON(ctx context.Context, endpoint string, target any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, cancel, err := newRequestWithTimeout(ctx, c.timeout, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return err
 	}
+	defer cancel()
 
 	req.Header.Set(userAgentHeader, userAgentValue)
 
