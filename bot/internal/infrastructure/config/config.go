@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -13,6 +14,7 @@ type Config struct {
 	TelegramToken       string
 	ScrapperURL         string
 	ScrapperHTTPTimeout time.Duration
+	ScrapperHTTPRetry   RetryConfig
 	BotHTTPAddr         string
 	BotGRPCAddr         string
 	ScrapperGRPCAddr    string
@@ -40,6 +42,12 @@ type KafkaConfig struct {
 	SerializationFormat string
 }
 
+type RetryConfig struct {
+	MaxAttempts           uint
+	Delay                 time.Duration
+	RetryableHTTPStatuses []int
+}
+
 const (
 	envTelegramToken       = "TELEGRAM_TOKEN"
 	envScrapperURL         = "SCRAPPER_URL"
@@ -60,6 +68,10 @@ const (
 	envSchemaRegistryURL        = "SCHEMA_REGISTRY_URL"
 	envKafkaLinkUpdatesSubject  = "KAFKA_LINK_UPDATES_SUBJECT"
 	envKafkaSerializationFormat = "KAFKA_SERIALIZATION_FORMAT"
+
+	envScrapperHTTPRetryMaxAttempts      = "SCRAPPER_HTTP_RETRY_MAX_ATTEMPTS"
+	envScrapperHTTPRetryDelay            = "SCRAPPER_HTTP_RETRY_DELAY"
+	envScrapperHTTPRetryableHTTPStatuses = "SCRAPPER_HTTP_RETRYABLE_STATUSES"
 )
 
 const (
@@ -81,6 +93,10 @@ const (
 	defaultSchemaRegistryURL        = "http://localhost:18085"
 	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
 	defaultKafkaSerializationFormat = "JSON"
+
+	defaultScrapperHTTPRetryMaxAttempts      uint = 3
+	defaultScrapperHTTPRetryDelay                 = 500 * time.Millisecond
+	defaultScrapperHTTPRetryableHTTPStatuses      = "429,500,502,503,504"
 )
 
 func MustLoad() *Config {
@@ -128,6 +144,20 @@ func MustLoad() *Config {
 			SchemaRegistryURL:   getEnv(envSchemaRegistryURL, defaultSchemaRegistryURL),
 			LinkUpdatesSubject:  getEnv(envKafkaLinkUpdatesSubject, defaultKafkaLinkUpdatesSubject),
 			SerializationFormat: getEnv(envKafkaSerializationFormat, defaultKafkaSerializationFormat),
+		},
+		ScrapperHTTPRetry: RetryConfig{
+			MaxAttempts: getEnvUint(
+				envScrapperHTTPRetryMaxAttempts,
+				defaultScrapperHTTPRetryMaxAttempts,
+			),
+			Delay: getEnvDuration(
+				envScrapperHTTPRetryDelay,
+				defaultScrapperHTTPRetryDelay,
+			),
+			RetryableHTTPStatuses: getEnvIntSlice(
+				envScrapperHTTPRetryableHTTPStatuses,
+				defaultScrapperHTTPRetryableHTTPStatuses,
+			),
 		},
 	}
 }
@@ -180,4 +210,49 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 	}
 
 	return parsed
+}
+
+func getEnvUint(key string, defaultValue uint) uint {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseUint(value, 10, 0)
+	if err != nil {
+		log.Fatalf("invalid uint value for %s: %s", key, value)
+	}
+
+	if parsed == 0 {
+		log.Fatalf("%s must be positive", key)
+	}
+
+	return uint(parsed)
+}
+
+func getEnvIntSlice(key string, defaultValue string) []int {
+	value := getEnv(key, defaultValue)
+
+	parts := strings.Split(value, ",")
+	result := make([]int, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		parsed, err := strconv.Atoi(part)
+		if err != nil {
+			log.Fatalf("invalid int value in %s: %s", key, part)
+		}
+
+		result = append(result, parsed)
+	}
+
+	if len(result) == 0 {
+		log.Fatalf("%s must not be empty", key)
+	}
+
+	return result
 }

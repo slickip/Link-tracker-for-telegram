@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	scrapperpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/scrapper"
+	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	appcache "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/cache"
@@ -135,11 +136,27 @@ func main() {
 		log.Info("bot notification transport initialized", "transport", "KAFKA")
 
 	case config.NotificationTransportHTTP:
-		botClient = clients.NewHTTPBotClient(cfg.BotHTTPURL, cfg.ExternalAPITimeout)
+		botClient = clients.NewHTTPBotClient(
+			cfg.BotHTTPURL,
+			cfg.ExternalAPITimeout,
+			h.HTTPRetryConfig{
+				MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+				Delay:                 cfg.ExternalAPIRetry.Delay,
+				RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+			},
+		)
 		log.Info("bot notification transport initialized", "transport", "HTTP")
 
 	case config.NotificationTransportGRPC:
-		httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL, cfg.ExternalAPITimeout)
+		httpBotClient := clients.NewHTTPBotClient(
+			cfg.BotHTTPURL,
+			cfg.ExternalAPITimeout,
+			h.HTTPRetryConfig{
+				MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+				Delay:                 cfg.ExternalAPIRetry.Delay,
+				RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+			},
+		)
 
 		grpcBotClient, err := clients.NewGRPCBotClient(cfg.BotGRPCAddr)
 		if err != nil {
@@ -160,6 +177,11 @@ func main() {
 		BaseURL: cfg.GitHubBaseURL,
 		Token:   cfg.GitHubToken,
 		Timeout: cfg.ExternalAPITimeout,
+		Retry: h.HTTPRetryConfig{
+			MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+			Delay:                 cfg.ExternalAPIRetry.Delay,
+			RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+		},
 		PerPage: cfg.ExternalAPIPerPage,
 	})
 
@@ -167,6 +189,11 @@ func main() {
 		BaseURL: cfg.StackOverflowBaseURL,
 		Site:    cfg.StackOverflowSite,
 		Timeout: cfg.ExternalAPITimeout,
+		Retry: h.HTTPRetryConfig{
+			MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+			Delay:                 cfg.ExternalAPIRetry.Delay,
+			RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+		},
 		PerPage: cfg.ExternalAPIPerPage,
 	})
 

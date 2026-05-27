@@ -22,6 +22,7 @@ import (
 	dbpkgsql "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/sql/database"
 	sqlrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/sql/repositories"
 	botpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/bot"
+	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"golang.org/x/sync/errgroup"
@@ -44,7 +45,15 @@ func main() {
 		log.Warn("failed to set bot commands", "error", err)
 	}
 
-	httpScrapperClient := clients.NewScrapperClient(cfg.ScrapperURL, cfg.ScrapperHTTPTimeout)
+	httpScrapperClient := clients.NewScrapperClient(
+		cfg.ScrapperURL,
+		cfg.ScrapperHTTPTimeout,
+		h.HTTPRetryConfig{
+			MaxAttempts:           cfg.ScrapperHTTPRetry.MaxAttempts,
+			Delay:                 cfg.ScrapperHTTPRetry.Delay,
+			RetryableHTTPStatuses: cfg.ScrapperHTTPRetry.RetryableHTTPStatuses,
+		},
+	)
 
 	var scrapperClient clients.ScrapperClient = httpScrapperClient
 
