@@ -18,6 +18,7 @@ type GitHubClient struct {
 	client  *http.Client
 	baseURL string
 	token   string
+	timeout time.Duration
 	perPage int
 }
 
@@ -63,6 +64,7 @@ func NewGitHubClient(cfg GitHubClientConfig) *GitHubClient {
 		},
 		baseURL: baseURL,
 		token:   cfg.Token,
+		timeout: timeout,
 		perPage: perPage,
 	}
 }
@@ -97,10 +99,11 @@ func (c *GitHubClient) GetNewIssuesAndPullRequests(
 
 	endpoint.RawQuery = query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	req, cancel, err := newRequestWithTimeout(ctx, c.timeout, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
+	defer cancel()
 
 	c.setHeaders(req)
 

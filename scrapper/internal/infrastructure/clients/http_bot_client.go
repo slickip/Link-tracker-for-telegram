@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
@@ -17,12 +18,18 @@ type BotClient interface {
 type HTTPBotClient struct {
 	baseURL string
 	client  *http.Client
+	timeout time.Duration
 }
 
-func NewHTTPBotClient(baseURL string) *HTTPBotClient {
+func NewHTTPBotClient(baseURL string, timeout time.Duration) *HTTPBotClient {
+	timeout = normalizeTimeout(timeout)
+
 	return &HTTPBotClient{
 		baseURL: baseURL,
-		client:  &http.Client{},
+		client: &http.Client{
+			Timeout: timeout,
+		},
+		timeout: timeout,
 	}
 }
 
@@ -32,22 +39,23 @@ func (c *HTTPBotClient) SendUpdate(ctx context.Context, update api.LinkUpdate) e
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(
+	req, cancel, err := newRequestWithTimeout(
 		ctx,
+		c.timeout,
 		http.MethodPost,
 		c.baseURL+"/updates",
 		bytes.NewBuffer(body),
 	)
-
 	if err != nil {
 		return err
 	}
+	defer cancel()
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("bot http request failed: %w", err)
 	}
 
 	defer func() {
