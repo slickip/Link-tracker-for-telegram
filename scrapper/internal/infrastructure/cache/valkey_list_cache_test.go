@@ -145,6 +145,7 @@ func TestValkeyListCacheClientSideCachingWithTestcontainers(t *testing.T) {
 
 func startValkeyContainer(t *testing.T, ctx context.Context) string {
 	t.Helper()
+	testcontainers.SkipIfProviderIsNotHealthy(t)
 
 	valkeyContainer, err := tcvalkey.Run(ctx, "valkey/valkey:7.2.5")
 	if err != nil {
