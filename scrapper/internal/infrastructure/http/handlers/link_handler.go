@@ -22,6 +22,14 @@ type RemoveLinkRequest struct {
 	URL string `json:"url"`
 }
 
+type RemoveLinksByTagRequest struct {
+	Tag string `json:"tag"`
+}
+
+type RemoveLinksByTagResponse struct {
+	RemovedCount int64 `json:"removedCount"`
+}
+
 type LinkHandler struct {
 	service *services.LinkService
 }
@@ -89,6 +97,40 @@ func (h *LinkHandler) RemoveLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *LinkHandler) RemoveLinksByTag(w http.ResponseWriter, r *http.Request) {
+	chatID, err := getChatIDFromRequest(r)
+	if err != nil {
+		http.Error(w, "invalid chat id", http.StatusBadRequest)
+		return
+	}
+
+	var req RemoveLinksByTagRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+
+	removedCount, err := h.service.RemoveLinksByTag(r.Context(), chatID, req.Tag)
+	if err != nil {
+		if errors.Is(err, pkg.ErrChatNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(RemoveLinksByTagResponse{
+		RemovedCount: removedCount,
+	}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *LinkHandler) ListLinks(w http.ResponseWriter, r *http.Request) {

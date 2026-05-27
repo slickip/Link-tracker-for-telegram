@@ -34,6 +34,14 @@ func NewRouter(
 		}
 	})
 
+	mux.HandleFunc("/links/by-tag", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			linkHandler.RemoveLinksByTag(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
+
 	mux.HandleFunc("/links", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
