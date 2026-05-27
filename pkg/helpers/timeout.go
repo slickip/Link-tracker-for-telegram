@@ -1,4 +1,4 @@
-package clients
+package helpers
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 const defaultHTTPClientTimeout = 5 * time.Second
 
-func normalizeTimeout(timeout time.Duration) time.Duration {
+func NormalizeTimeout(timeout time.Duration) time.Duration {
 	if timeout <= 0 {
 		return defaultHTTPClientTimeout
 	}
@@ -17,14 +17,14 @@ func normalizeTimeout(timeout time.Duration) time.Duration {
 	return timeout
 }
 
-func newRequestWithTimeout(
+func NewRequestWithTimeout(
 	ctx context.Context,
 	timeout time.Duration,
 	method string,
 	url string,
 	body io.Reader,
 ) (*http.Request, context.CancelFunc, error) {
-	timeout = normalizeTimeout(timeout)
+	timeout = NormalizeTimeout(timeout)
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
 
 	req, err := http.NewRequestWithContext(ctxWithTimeout, method, url, body)

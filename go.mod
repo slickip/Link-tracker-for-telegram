@@ -3,6 +3,7 @@ module gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker
 go 1.24.1
 
 require (
+	github.com/avast/retry-go/v5 v5.0.0
 	github.com/confluentinc/confluent-kafka-go/v2 v2.12.0
 	github.com/go-co-op/gocron/v2 v2.19.1
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1

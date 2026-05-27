@@ -35,6 +35,7 @@ type Config struct {
 	StackOverflowSite    string
 	ExternalAPITimeout   time.Duration
 	ExternalAPIPerPage   int
+	ExternalAPIRetry     RetryConfig
 }
 
 type AccessType string
@@ -85,6 +86,10 @@ const (
 	envValkeyTTL                    = "VALKEY_TTL"
 	envValkeyClientSideCacheEnabled = "VALKEY_CLIENT_SIDE_CACHE_ENABLED"
 	envValkeyClientSideCacheTTL     = "VALKEY_CLIENT_SIDE_CACHE_TTL"
+
+	envExternalAPIRetryMaxAttempts      = "EXTERNAL_API_RETRY_MAX_ATTEMPTS"
+	envExternalAPIRetryDelay            = "EXTERNAL_API_RETRY_DELAY"
+	envExternalAPIRetryableHTTPStatuses = "EXTERNAL_API_RETRYABLE_STATUSES"
 )
 
 const (
@@ -128,6 +133,10 @@ const (
 	defaultValkeyTTL                    = 5 * time.Minute
 	defaultValkeyClientSideCacheEnabled = true
 	defaultValkeyClientSideCacheTTL     = 30 * time.Second
+
+	defaultExternalAPIRetryMaxAttempts      uint = 3
+	defaultExternalAPIRetryDelay                 = 500 * time.Millisecond
+	defaultExternalAPIRetryableHTTPStatuses      = "429,500,502,503,504"
 )
 
 const (
@@ -168,6 +177,12 @@ type ValkeyConfig struct {
 	TTL                    time.Duration
 	ClientSideCacheEnabled bool
 	ClientSideCacheTTL     time.Duration
+}
+
+type RetryConfig struct {
+	MaxAttempts           uint
+	Delay                 time.Duration
+	RetryableHTTPStatuses []int
 }
 
 func MustLoad() *Config {
@@ -276,6 +291,20 @@ func MustLoad() *Config {
 			PublishInterval: getEnvDuration(envOutboxPublishInterval, defaultOutboxPublishInterval),
 			BatchSize:       getEnvInt(envOutboxBatchSize, defaultOutboxBatchSize),
 		},
+		ExternalAPIRetry: RetryConfig{
+			MaxAttempts: getEnvUint(
+				envExternalAPIRetryMaxAttempts,
+				defaultExternalAPIRetryMaxAttempts,
+			),
+			Delay: getEnvDuration(
+				envExternalAPIRetryDelay,
+				defaultExternalAPIRetryDelay,
+			),
+			RetryableHTTPStatuses: getEnvIntSlice(
+				envExternalAPIRetryableHTTPStatuses,
+				defaultExternalAPIRetryableHTTPStatuses,
+			),
+		},
 	}
 }
 
@@ -341,6 +370,51 @@ func getEnvStringSlice(key string, defaultValue string) []string {
 		if part != "" {
 			result = append(result, part)
 		}
+	}
+
+	return result
+}
+
+func getEnvUint(key string, defaultValue uint) uint {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseUint(value, 10, 0)
+	if err != nil {
+		log.Fatalf("invalid uint value for %s: %s", key, value)
+	}
+
+	if parsed == 0 {
+		log.Fatalf("%s must be positive", key)
+	}
+
+	return uint(parsed)
+}
+
+func getEnvIntSlice(key string, defaultValue string) []int {
+	value := getEnv(key, defaultValue)
+
+	parts := strings.Split(value, ",")
+	result := make([]int, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		parsed, err := strconv.Atoi(part)
+		if err != nil {
+			log.Fatalf("invalid int value in %s: %s", key, part)
+		}
+
+		result = append(result, parsed)
+	}
+
+	if len(result) == 0 {
+		log.Fatalf("%s must not be empty", key)
 	}
 
 	return result

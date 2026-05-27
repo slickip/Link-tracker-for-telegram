@@ -9,17 +9,19 @@ import (
 	"strings"
 	"time"
 
+	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
 const defaultGitHubBaseURL = "https://api.github.com"
 
 type GitHubClient struct {
-	client  *http.Client
-	baseURL string
-	token   string
-	timeout time.Duration
-	perPage int
+	client      *http.Client
+	baseURL     string
+	token       string
+	timeout     time.Duration
+	perPage     int
+	retryConfig h.HTTPRetryConfig
 }
 
 type GitHubClientConfig struct {
@@ -27,6 +29,7 @@ type GitHubClientConfig struct {
 	Token   string
 	Timeout time.Duration
 	PerPage int
+	Retry   h.HTTPRetryConfig
 }
 
 type githubIssueResponse struct {
@@ -62,10 +65,11 @@ func NewGitHubClient(cfg GitHubClientConfig) *GitHubClient {
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		baseURL: baseURL,
-		token:   cfg.Token,
-		timeout: timeout,
-		perPage: perPage,
+		baseURL:     baseURL,
+		token:       cfg.Token,
+		timeout:     timeout,
+		perPage:     perPage,
+		retryConfig: h.NormalizeRetryConfig(cfg.Retry),
 	}
 }
 
@@ -99,28 +103,37 @@ func (c *GitHubClient) GetNewIssuesAndPullRequests(
 
 	endpoint.RawQuery = query.Encode()
 
-	req, cancel, err := newRequestWithTimeout(ctx, c.timeout, http.MethodGet, endpoint.String(), nil)
-	if err != nil {
-		return nil, time.Time{}, err
-	}
-	defer cancel()
-
-	c.setHeaders(req)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, time.Time{}, err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, time.Time{}, fmt.Errorf("github status %d", resp.StatusCode)
-	}
-
 	var items []githubIssueResponse
-	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+
+	err = h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+		req, cancel, err := h.NewRequestWithTimeout(ctx, c.timeout, http.MethodGet, endpoint.String(), nil)
+		if err != nil {
+			return err
+		}
+		defer cancel()
+
+		c.setHeaders(req)
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+
+		if resp.StatusCode != http.StatusOK {
+			return h.NewHTTPStatusError("github", resp.StatusCode, c.retryConfig)
+		}
+
+		items = nil
+		if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		return nil, time.Time{}, err
 	}
 
