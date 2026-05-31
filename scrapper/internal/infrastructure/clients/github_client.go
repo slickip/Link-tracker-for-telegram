@@ -9,27 +9,53 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sony/gobreaker/v2"
 	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
-const defaultGitHubBaseURL = "https://api.github.com"
+const (
+	defaultGitHubBaseURL = "https://api.github.com"
+	defaultGitHubTimeout = 10 * time.Second
+	defaultGitHubPerPage = 100
+
+	gitHubServiceName        = "github"
+	gitHubCircuitBreakerName = "github-client"
+
+	gitHubAcceptHeader     = "application/vnd.github+json"
+	gitHubUserAgent        = "link-tracker"
+	gitHubAuthBearerPrefix = "Bearer "
+
+	gitHubIssuesPath = "/repos/%s/%s/issues"
+
+	gitHubQueryState     = "state"
+	gitHubQuerySort      = "sort"
+	gitHubQueryDirection = "direction"
+	gitHubQueryPerPage   = "per_page"
+	gitHubQuerySince     = "since"
+
+	gitHubStateAll      = "all"
+	gitHubSortCreated   = "created"
+	gitHubDirectionDesc = "desc"
+)
 
 type GitHubClient struct {
-	client      *http.Client
-	baseURL     string
-	token       string
-	timeout     time.Duration
-	perPage     int
-	retryConfig h.HTTPRetryConfig
+	client         *http.Client
+	baseURL        string
+	token          string
+	timeout        time.Duration
+	perPage        int
+	retryConfig    h.HTTPRetryConfig
+	circuitBreaker *gobreaker.CircuitBreaker[struct{}]
 }
 
 type GitHubClientConfig struct {
-	BaseURL string
-	Token   string
-	Timeout time.Duration
-	PerPage int
-	Retry   h.HTTPRetryConfig
+	BaseURL        string
+	Token          string
+	Timeout        time.Duration
+	PerPage        int
+	Retry          h.HTTPRetryConfig
+	CircuitBreaker h.CircuitBreakerConfig
 }
 
 type githubIssueResponse struct {
@@ -53,23 +79,24 @@ func NewGitHubClient(cfg GitHubClientConfig) *GitHubClient {
 
 	timeout := cfg.Timeout
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = defaultGitHubTimeout
 	}
 
 	perPage := cfg.PerPage
 	if perPage <= 0 {
-		perPage = 100
+		perPage = defaultGitHubPerPage
 	}
 
 	return &GitHubClient{
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		baseURL:     baseURL,
-		token:       cfg.Token,
-		timeout:     timeout,
-		perPage:     perPage,
-		retryConfig: h.NormalizeRetryConfig(cfg.Retry),
+		baseURL:        baseURL,
+		token:          cfg.Token,
+		timeout:        timeout,
+		perPage:        perPage,
+		retryConfig:    h.NormalizeRetryConfig(cfg.Retry),
+		circuitBreaker: h.NewCircuitBreaker(gitHubCircuitBreakerName, cfg.CircuitBreaker),
 	}
 }
 
@@ -82,8 +109,7 @@ func (c *GitHubClient) GetNewIssuesAndPullRequests(
 	since time.Time,
 ) ([]domain.LinkUpdate, time.Time, error) {
 	endpoint, err := url.Parse(fmt.Sprintf(
-		"%s/repos/%s/%s/issues",
-		c.baseURL,
+		c.baseURL+gitHubIssuesPath,
 		url.PathEscape(owner),
 		url.PathEscape(repo),
 	))
@@ -92,46 +118,48 @@ func (c *GitHubClient) GetNewIssuesAndPullRequests(
 	}
 
 	query := endpoint.Query()
-	query.Set("state", "all")
-	query.Set("sort", "created")
-	query.Set("direction", "desc")
-	query.Set("per_page", fmt.Sprintf("%d", c.perPage))
+	query.Set(gitHubQueryState, gitHubStateAll)
+	query.Set(gitHubQuerySort, gitHubSortCreated)
+	query.Set(gitHubQueryDirection, gitHubDirectionDesc)
+	query.Set(gitHubQueryPerPage, fmt.Sprintf("%d", c.perPage))
 
 	if !since.IsZero() {
-		query.Set("since", since.UTC().Format(time.RFC3339))
+		query.Set(gitHubQuerySince, since.UTC().Format(time.RFC3339))
 	}
 
 	endpoint.RawQuery = query.Encode()
 
 	var items []githubIssueResponse
 
-	err = h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
-		req, cancel, err := h.NewRequestWithTimeout(ctx, c.timeout, http.MethodGet, endpoint.String(), nil)
-		if err != nil {
-			return err
-		}
-		defer cancel()
+	err = h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(ctx, c.timeout, http.MethodGet, endpoint.String(), nil)
+			if err != nil {
+				return err
+			}
+			defer cancel()
 
-		c.setHeaders(req)
+			c.setHeaders(req)
 
-		resp, err := c.client.Do(req)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			_ = resp.Body.Close()
-		}()
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
-		if resp.StatusCode != http.StatusOK {
-			return h.NewHTTPStatusError("github", resp.StatusCode, c.retryConfig)
-		}
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(gitHubServiceName, resp.StatusCode, c.retryConfig)
+			}
 
-		items = nil
-		if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
-			return err
-		}
+			items = nil
+			if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+				return err
+			}
 
-		return nil
+			return nil
+		})
 	})
 	if err != nil {
 		return nil, time.Time{}, err
@@ -169,10 +197,10 @@ func (c *GitHubClient) GetNewIssuesAndPullRequests(
 }
 
 func (c *GitHubClient) setHeaders(req *http.Request) {
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "link-tracker")
+	req.Header.Set("Accept", gitHubAcceptHeader)
+	req.Header.Set("User-Agent", gitHubUserAgent)
 
 	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
+		req.Header.Set("Authorization", gitHubAuthBearerPrefix+c.token)
 	}
 }

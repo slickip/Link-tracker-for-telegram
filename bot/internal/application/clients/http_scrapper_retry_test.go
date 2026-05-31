@@ -33,6 +33,7 @@ func TestBotScrapperHTTPClientRetriesOnRetryable5xx(t *testing.T) {
 			Delay:                 10 * time.Millisecond,
 			RetryableHTTPStatuses: []int{http.StatusInternalServerError},
 		},
+		h.CircuitBreakerConfig{},
 	)
 
 	err := client.RegisterChat(context.Background(), 123)
@@ -59,6 +60,7 @@ func TestBotScrapperHTTPClientDoesNotRetryOnNonRetryable4xx(t *testing.T) {
 			Delay:                 10 * time.Millisecond,
 			RetryableHTTPStatuses: []int{http.StatusInternalServerError},
 		},
+		h.CircuitBreakerConfig{},
 	)
 
 	err := client.RegisterChat(context.Background(), 123)
@@ -87,6 +89,7 @@ func TestBotScrapperHTTPClientUsesConstantBackoff(t *testing.T) {
 			Delay:                 retryBackoffDelay,
 			RetryableHTTPStatuses: []int{http.StatusInternalServerError},
 		},
+		h.CircuitBreakerConfig{},
 	)
 
 	err := client.RegisterChat(context.Background(), 123)

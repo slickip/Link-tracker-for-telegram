@@ -29,13 +29,14 @@ type Config struct {
 	LinkBatchSize int
 	WorkerCount   int
 
-	GitHubBaseURL        string
-	GitHubToken          string
-	StackOverflowBaseURL string
-	StackOverflowSite    string
-	ExternalAPITimeout   time.Duration
-	ExternalAPIPerPage   int
-	ExternalAPIRetry     RetryConfig
+	GitHubBaseURL             string
+	GitHubToken               string
+	StackOverflowBaseURL      string
+	StackOverflowSite         string
+	ExternalAPITimeout        time.Duration
+	ExternalAPIPerPage        int
+	ExternalAPIRetry          RetryConfig
+	ExternalAPICircuitBreaker CircuitBreakerConfig
 }
 
 type AccessType string
@@ -90,6 +91,14 @@ const (
 	envExternalAPIRetryMaxAttempts      = "EXTERNAL_API_RETRY_MAX_ATTEMPTS"
 	envExternalAPIRetryDelay            = "EXTERNAL_API_RETRY_DELAY"
 	envExternalAPIRetryableHTTPStatuses = "EXTERNAL_API_RETRYABLE_STATUSES"
+
+	envExternalAPICircuitBreakerEnabled                       = "EXTERNAL_API_CB_ENABLED"
+	envExternalAPICircuitBreakerFailureRateThreshold          = "EXTERNAL_API_CB_FAILURE_RATE_THRESHOLD"
+	envExternalAPICircuitBreakerMinimumRequests               = "EXTERNAL_API_CB_MINIMUM_REQUESTS"
+	envExternalAPICircuitBreakerSlidingWindowInterval         = "EXTERNAL_API_CB_SLIDING_WINDOW_INTERVAL"
+	envExternalAPICircuitBreakerSlidingWindowBucketPeriod     = "EXTERNAL_API_CB_SLIDING_WINDOW_BUCKET_PERIOD"
+	envExternalAPICircuitBreakerWaitDurationInOpenState       = "EXTERNAL_API_CB_WAIT_DURATION_IN_OPEN_STATE"
+	envExternalAPICircuitBreakerPermittedCallsInHalfOpenState = "EXTERNAL_API_CB_PERMITTED_CALLS_IN_HALF_OPEN_STATE"
 )
 
 const (
@@ -137,6 +146,14 @@ const (
 	defaultExternalAPIRetryMaxAttempts      uint = 3
 	defaultExternalAPIRetryDelay                 = 500 * time.Millisecond
 	defaultExternalAPIRetryableHTTPStatuses      = "429,500,502,503,504"
+
+	defaultExternalAPICircuitBreakerEnabled                            = true
+	defaultExternalAPICircuitBreakerFailureRateThreshold               = 50.0
+	defaultExternalAPICircuitBreakerMinimumRequests               uint = 2
+	defaultExternalAPICircuitBreakerSlidingWindowInterval              = 10 * time.Second
+	defaultExternalAPICircuitBreakerSlidingWindowBucketPeriod          = time.Second
+	defaultExternalAPICircuitBreakerWaitDurationInOpenState            = time.Second
+	defaultExternalAPICircuitBreakerPermittedCallsInHalfOpenState uint = 2
 )
 
 const (
@@ -144,6 +161,7 @@ const (
 	maxLinkBatchSize      = 500
 	minWorkerCount        = 1
 	minExternalAPIPerPage = 1
+	float64BitSize        = 64
 )
 
 type NotificationTransport string
@@ -183,6 +201,16 @@ type RetryConfig struct {
 	MaxAttempts           uint
 	Delay                 time.Duration
 	RetryableHTTPStatuses []int
+}
+
+type CircuitBreakerConfig struct {
+	Enabled                       bool
+	FailureRateThreshold          float64
+	MinimumRequests               uint32
+	SlidingWindowInterval         time.Duration
+	SlidingWindowBucketPeriod     time.Duration
+	WaitDurationInOpenState       time.Duration
+	PermittedCallsInHalfOpenState uint32
 }
 
 func MustLoad() *Config {
@@ -305,6 +333,36 @@ func MustLoad() *Config {
 				defaultExternalAPIRetryableHTTPStatuses,
 			),
 		},
+		ExternalAPICircuitBreaker: CircuitBreakerConfig{
+			Enabled: getEnvBool(
+				envExternalAPICircuitBreakerEnabled,
+				defaultExternalAPICircuitBreakerEnabled,
+			),
+			FailureRateThreshold: getEnvFloat64(
+				envExternalAPICircuitBreakerFailureRateThreshold,
+				defaultExternalAPICircuitBreakerFailureRateThreshold,
+			),
+			MinimumRequests: uint32(getEnvUint(
+				envExternalAPICircuitBreakerMinimumRequests,
+				defaultExternalAPICircuitBreakerMinimumRequests,
+			)),
+			SlidingWindowInterval: getEnvDuration(
+				envExternalAPICircuitBreakerSlidingWindowInterval,
+				defaultExternalAPICircuitBreakerSlidingWindowInterval,
+			),
+			SlidingWindowBucketPeriod: getEnvDuration(
+				envExternalAPICircuitBreakerSlidingWindowBucketPeriod,
+				defaultExternalAPICircuitBreakerSlidingWindowBucketPeriod,
+			),
+			WaitDurationInOpenState: getEnvDuration(
+				envExternalAPICircuitBreakerWaitDurationInOpenState,
+				defaultExternalAPICircuitBreakerWaitDurationInOpenState,
+			),
+			PermittedCallsInHalfOpenState: uint32(getEnvUint(
+				envExternalAPICircuitBreakerPermittedCallsInHalfOpenState,
+				defaultExternalAPICircuitBreakerPermittedCallsInHalfOpenState,
+			)),
+		},
 	}
 }
 
@@ -418,4 +476,18 @@ func getEnvIntSlice(key string, defaultValue string) []int {
 	}
 
 	return result
+}
+
+func getEnvFloat64(key string, defaultValue float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseFloat(value, float64BitSize)
+	if err != nil {
+		log.Fatalf("invalid float value for %s: %s", key, value)
+	}
+
+	return parsed
 }
