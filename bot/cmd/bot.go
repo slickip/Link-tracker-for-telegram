@@ -53,6 +53,15 @@ func main() {
 			Delay:                 cfg.ScrapperHTTPRetry.Delay,
 			RetryableHTTPStatuses: cfg.ScrapperHTTPRetry.RetryableHTTPStatuses,
 		},
+		h.CircuitBreakerConfig{
+			Enabled:                       cfg.ScrapperHTTPCircuitBreaker.Enabled,
+			FailureRateThreshold:          cfg.ScrapperHTTPCircuitBreaker.FailureRateThreshold,
+			MinimumRequests:               cfg.ScrapperHTTPCircuitBreaker.MinimumRequests,
+			SlidingWindowInterval:         cfg.ScrapperHTTPCircuitBreaker.SlidingWindowInterval,
+			SlidingWindowBucketPeriod:     cfg.ScrapperHTTPCircuitBreaker.SlidingWindowBucketPeriod,
+			WaitDurationInOpenState:       cfg.ScrapperHTTPCircuitBreaker.WaitDurationInOpenState,
+			PermittedCallsInHalfOpenState: cfg.ScrapperHTTPCircuitBreaker.PermittedCallsInHalfOpenState,
+		},
 	)
 
 	var scrapperClient clients.ScrapperClient = httpScrapperClient

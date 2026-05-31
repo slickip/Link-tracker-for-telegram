@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 )
 
 const (
@@ -75,7 +77,14 @@ func TestBotScrapperHTTPClientTimeoutWhenExternalServiceIsSlow(t *testing.T) {
 			server := newSlowHTTPServer()
 			defer server.Close()
 
-			client := NewScrapperClient(server.URL, testClientTimeout)
+			client := NewScrapperClient(
+				server.URL,
+				testClientTimeout,
+				h.HTTPRetryConfig{
+					MaxAttempts: 1,
+				},
+				h.CircuitBreakerConfig{},
+			)
 
 			start := time.Now()
 

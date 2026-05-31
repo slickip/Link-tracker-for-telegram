@@ -116,9 +116,10 @@ func scrapperRetryClientCases() []scrapperRetryClientCase {
 			successBody: `[]`,
 			call: func(baseURL string, retryConfig h.HTTPRetryConfig) error {
 				client := NewGitHubClient(GitHubClientConfig{
-					BaseURL: baseURL,
-					Timeout: retryClientTimeout,
-					Retry:   retryConfig,
+					BaseURL:        baseURL,
+					Timeout:        retryClientTimeout,
+					Retry:          retryConfig,
+					CircuitBreaker: h.CircuitBreakerConfig{},
 				})
 
 				_, _, err := client.GetNewIssuesAndPullRequests(
@@ -138,10 +139,11 @@ func scrapperRetryClientCases() []scrapperRetryClientCase {
 			successBody: `{"items":[]}`,
 			call: func(baseURL string, retryConfig h.HTTPRetryConfig) error {
 				client := NewStackOverflowClient(StackOverflowClientConfig{
-					BaseURL: baseURL,
-					Site:    "stackoverflow",
-					Timeout: retryClientTimeout,
-					Retry:   retryConfig,
+					BaseURL:        baseURL,
+					Site:           "stackoverflow",
+					Timeout:        retryClientTimeout,
+					Retry:          retryConfig,
+					CircuitBreaker: h.CircuitBreakerConfig{},
 				})
 
 				var result map[string]any

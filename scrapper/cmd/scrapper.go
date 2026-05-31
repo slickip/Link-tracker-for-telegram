@@ -183,6 +183,15 @@ func main() {
 			RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
 		},
 		PerPage: cfg.ExternalAPIPerPage,
+		CircuitBreaker: h.CircuitBreakerConfig{
+			Enabled:                       cfg.ExternalAPICircuitBreaker.Enabled,
+			FailureRateThreshold:          cfg.ExternalAPICircuitBreaker.FailureRateThreshold,
+			MinimumRequests:               cfg.ExternalAPICircuitBreaker.MinimumRequests,
+			SlidingWindowInterval:         cfg.ExternalAPICircuitBreaker.SlidingWindowInterval,
+			SlidingWindowBucketPeriod:     cfg.ExternalAPICircuitBreaker.SlidingWindowBucketPeriod,
+			WaitDurationInOpenState:       cfg.ExternalAPICircuitBreaker.WaitDurationInOpenState,
+			PermittedCallsInHalfOpenState: cfg.ExternalAPICircuitBreaker.PermittedCallsInHalfOpenState,
+		},
 	})
 
 	soClient := clients.NewStackOverflowClient(clients.StackOverflowClientConfig{
@@ -195,6 +204,15 @@ func main() {
 			RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
 		},
 		PerPage: cfg.ExternalAPIPerPage,
+		CircuitBreaker: h.CircuitBreakerConfig{
+			Enabled:                       cfg.ExternalAPICircuitBreaker.Enabled,
+			FailureRateThreshold:          cfg.ExternalAPICircuitBreaker.FailureRateThreshold,
+			MinimumRequests:               cfg.ExternalAPICircuitBreaker.MinimumRequests,
+			SlidingWindowInterval:         cfg.ExternalAPICircuitBreaker.SlidingWindowInterval,
+			SlidingWindowBucketPeriod:     cfg.ExternalAPICircuitBreaker.SlidingWindowBucketPeriod,
+			WaitDurationInOpenState:       cfg.ExternalAPICircuitBreaker.WaitDurationInOpenState,
+			PermittedCallsInHalfOpenState: cfg.ExternalAPICircuitBreaker.PermittedCallsInHalfOpenState,
+		},
 	})
 
 	scheduler := services.NewScheduler(

@@ -11,16 +11,17 @@ import (
 )
 
 type Config struct {
-	TelegramToken       string
-	ScrapperURL         string
-	ScrapperHTTPTimeout time.Duration
-	ScrapperHTTPRetry   RetryConfig
-	BotHTTPAddr         string
-	BotGRPCAddr         string
-	ScrapperGRPCAddr    string
-	DatabaseURL         string
-	AccessType          AccessType
-	Kafka               KafkaConfig
+	TelegramToken              string
+	ScrapperURL                string
+	ScrapperHTTPTimeout        time.Duration
+	ScrapperHTTPRetry          RetryConfig
+	ScrapperHTTPCircuitBreaker CircuitBreakerConfig
+	BotHTTPAddr                string
+	BotGRPCAddr                string
+	ScrapperGRPCAddr           string
+	DatabaseURL                string
+	AccessType                 AccessType
+	Kafka                      KafkaConfig
 }
 
 type AccessType string
@@ -48,6 +49,16 @@ type RetryConfig struct {
 	RetryableHTTPStatuses []int
 }
 
+type CircuitBreakerConfig struct {
+	Enabled                       bool
+	FailureRateThreshold          float64
+	MinimumRequests               uint32
+	SlidingWindowInterval         time.Duration
+	SlidingWindowBucketPeriod     time.Duration
+	WaitDurationInOpenState       time.Duration
+	PermittedCallsInHalfOpenState uint32
+}
+
 const (
 	envTelegramToken       = "TELEGRAM_TOKEN"
 	envScrapperURL         = "SCRAPPER_URL"
@@ -72,6 +83,14 @@ const (
 	envScrapperHTTPRetryMaxAttempts      = "SCRAPPER_HTTP_RETRY_MAX_ATTEMPTS"
 	envScrapperHTTPRetryDelay            = "SCRAPPER_HTTP_RETRY_DELAY"
 	envScrapperHTTPRetryableHTTPStatuses = "SCRAPPER_HTTP_RETRYABLE_STATUSES"
+
+	envScrapperHTTPCircuitBreakerEnabled                       = "SCRAPPER_HTTP_CB_ENABLED"
+	envScrapperHTTPCircuitBreakerFailureRateThreshold          = "SCRAPPER_HTTP_CB_FAILURE_RATE_THRESHOLD"
+	envScrapperHTTPCircuitBreakerMinimumRequests               = "SCRAPPER_HTTP_CB_MINIMUM_REQUESTS"
+	envScrapperHTTPCircuitBreakerSlidingWindowInterval         = "SCRAPPER_HTTP_CB_SLIDING_WINDOW_INTERVAL"
+	envScrapperHTTPCircuitBreakerSlidingWindowBucketPeriod     = "SCRAPPER_HTTP_CB_SLIDING_WINDOW_BUCKET_PERIOD"
+	envScrapperHTTPCircuitBreakerWaitDurationInOpenState       = "SCRAPPER_HTTP_CB_WAIT_DURATION_IN_OPEN_STATE"
+	envScrapperHTTPCircuitBreakerPermittedCallsInHalfOpenState = "SCRAPPER_HTTP_CB_PERMITTED_CALLS_IN_HALF_OPEN_STATE"
 )
 
 const (
@@ -97,6 +116,14 @@ const (
 	defaultScrapperHTTPRetryMaxAttempts      uint = 3
 	defaultScrapperHTTPRetryDelay                 = 500 * time.Millisecond
 	defaultScrapperHTTPRetryableHTTPStatuses      = "429,500,502,503,504"
+
+	defaultScrapperHTTPCircuitBreakerEnabled                            = true
+	defaultScrapperHTTPCircuitBreakerFailureRateThreshold               = 50.0
+	defaultScrapperHTTPCircuitBreakerMinimumRequests               uint = 2
+	defaultScrapperHTTPCircuitBreakerSlidingWindowInterval              = 10 * time.Second
+	defaultScrapperHTTPCircuitBreakerSlidingWindowBucketPeriod          = time.Second
+	defaultScrapperHTTPCircuitBreakerWaitDurationInOpenState            = time.Second
+	defaultScrapperHTTPCircuitBreakerPermittedCallsInHalfOpenState uint = 2
 )
 
 func MustLoad() *Config {
@@ -158,6 +185,36 @@ func MustLoad() *Config {
 				envScrapperHTTPRetryableHTTPStatuses,
 				defaultScrapperHTTPRetryableHTTPStatuses,
 			),
+		},
+		ScrapperHTTPCircuitBreaker: CircuitBreakerConfig{
+			Enabled: getEnvBool(
+				envScrapperHTTPCircuitBreakerEnabled,
+				defaultScrapperHTTPCircuitBreakerEnabled,
+			),
+			FailureRateThreshold: getEnvFloat64(
+				envScrapperHTTPCircuitBreakerFailureRateThreshold,
+				defaultScrapperHTTPCircuitBreakerFailureRateThreshold,
+			),
+			MinimumRequests: uint32(getEnvUint(
+				envScrapperHTTPCircuitBreakerMinimumRequests,
+				defaultScrapperHTTPCircuitBreakerMinimumRequests,
+			)),
+			SlidingWindowInterval: getEnvDuration(
+				envScrapperHTTPCircuitBreakerSlidingWindowInterval,
+				defaultScrapperHTTPCircuitBreakerSlidingWindowInterval,
+			),
+			SlidingWindowBucketPeriod: getEnvDuration(
+				envScrapperHTTPCircuitBreakerSlidingWindowBucketPeriod,
+				defaultScrapperHTTPCircuitBreakerSlidingWindowBucketPeriod,
+			),
+			WaitDurationInOpenState: getEnvDuration(
+				envScrapperHTTPCircuitBreakerWaitDurationInOpenState,
+				defaultScrapperHTTPCircuitBreakerWaitDurationInOpenState,
+			),
+			PermittedCallsInHalfOpenState: uint32(getEnvUint(
+				envScrapperHTTPCircuitBreakerPermittedCallsInHalfOpenState,
+				defaultScrapperHTTPCircuitBreakerPermittedCallsInHalfOpenState,
+			)),
 		},
 	}
 }
@@ -255,4 +312,32 @@ func getEnvIntSlice(key string, defaultValue string) []int {
 	}
 
 	return result
+}
+
+func getEnvFloat64(key string, defaultValue float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		log.Fatalf("invalid float value for %s: %s", key, value)
+	}
+
+	return parsed
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Fatalf("invalid bool value for %s: %s", key, value)
+	}
+
+	return parsed
 }
