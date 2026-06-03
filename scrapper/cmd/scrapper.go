@@ -136,7 +136,7 @@ func main() {
 		log.Info("bot notification transport initialized", "transport", "KAFKA")
 
 	case config.NotificationTransportHTTP:
-		botClient = clients.NewHTTPBotClient(
+		httpBotClient := clients.NewHTTPBotClient(
 			cfg.BotHTTPURL,
 			cfg.ExternalAPITimeout,
 			h.HTTPRetryConfig{
@@ -145,7 +145,34 @@ func main() {
 				RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
 			},
 		)
-		log.Info("bot notification transport initialized", "transport", "HTTP")
+
+		producer, err := kafka.NewConfluentLinkUpdateProducer(
+			kafka.LinkUpdateProducerConfig{
+				BootstrapServers:    cfg.Kafka.BootstrapServers,
+				Topic:               cfg.Kafka.LinkUpdatesTopic,
+				ClientID:            cfg.Kafka.ClientID,
+				SchemaRegistryURL:   cfg.Kafka.SchemaRegistryURL,
+				LinkUpdatesSubject:  cfg.Kafka.LinkUpdatesSubject,
+				SerializationFormat: cfg.Kafka.SerializationFormat,
+			},
+		)
+		if err != nil {
+			log.Error("failed to init kafka fallback producer", "error", err)
+			os.Exit(1)
+		}
+
+		linkUpdateProducer = producer
+		defer linkUpdateProducer.Close()
+
+		kafkaBotClient := clients.NewKafkaBotClient(linkUpdateProducer)
+
+		botClient = clients.NewFallbackBotClient(
+			httpBotClient,
+			kafkaBotClient,
+			log,
+		)
+
+		log.Info("bot notification transport initialized", "transport", "HTTP_WITH_KAFKA_FALLBACK")
 
 	case config.NotificationTransportGRPC:
 		httpBotClient := clients.NewHTTPBotClient(

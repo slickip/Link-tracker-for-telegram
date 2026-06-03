@@ -128,7 +128,7 @@ const (
 	defaultExternalAPITimeout   = 10 * time.Second
 	defaultExternalAPIPerPage   = 100
 
-	defaultNotificationTransport = string(NotificationTransportKafka)
+	defaultNotificationTransport = string(NotificationTransportHTTP)
 
 	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
 	defaultKafkaLinkUpdatesTopic = "link-updates"
