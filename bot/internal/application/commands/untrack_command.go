@@ -38,8 +38,18 @@ func (c *UntrackCommand) Execute(ctx context.Context, chatID int64, text string)
 
 	commandArg := args[1]
 
-	if commandArg == "tag" {
+	if commandArg == "tag" || !isURL(commandArg) {
 		if len(args) < minArgsForTag {
+			if commandArg != "tag" {
+				removedCount, err := c.client.RemoveLinksByTag(ctx, chatID, commandArg)
+				if err != nil {
+					return "Не получилось удалить ссылки по тегу", err
+				}
+				if removedCount == 0 {
+					return "Ссылки с указанным тегом не найдены", nil
+				}
+				return fmt.Sprintf("Удалено ссылок с тегом %s: %d", commandArg, removedCount), nil
+			}
 			return "Использование: /untrack tag <tag>", nil
 		}
 
@@ -64,4 +74,9 @@ func (c *UntrackCommand) Execute(ctx context.Context, chatID int64, text string)
 	}
 
 	return "Ссылка удалена", nil
+}
+
+func isURL(s string) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }

@@ -15,14 +15,16 @@ import (
 	"gorm.io/gorm"
 
 	scrapperpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/scrapper"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+	appcache "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/cache"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/config"
+	infrastructurecache "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/cache"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
 	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http/handlers"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/orm/repositories"
 	sqlrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/sql/repositories"
 	domainrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
@@ -83,8 +85,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	chatService := services.NewChatService(chatRepo)
-	linkService := services.NewLinkService(linkRepo, chatRepo)
+	var listCache appcache.ListCache
+
+	if cfg.Valkey.Enabled {
+		valkeyCache, err := infrastructurecache.NewValkeyListCache(
+			cfg.Valkey.Addresses,
+			cfg.Valkey.Username,
+			cfg.Valkey.Password,
+			cfg.Valkey.ClientSideCacheEnabled,
+			cfg.Valkey.ClientSideCacheTTL,
+		)
+		if err != nil {
+			log.Error("failed to initialize Valkey cache, cache disabled", "error", err)
+		} else {
+			listCache = valkeyCache
+			defer valkeyCache.Close()
+		}
+	}
+
+	chatService := services.NewChatServiceWithCache(chatRepo, listCache)
+	linkService := services.NewLinkServiceWithCache(linkRepo, chatRepo, listCache, cfg.Valkey.TTL)
 	tagService := services.NewTagService(tagRepo, chatRepo)
 
 	var (
