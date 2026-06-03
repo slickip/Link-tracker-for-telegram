@@ -85,7 +85,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var listCache appcache.ListCache = infrastructurecache.NewNoopListCache()
+	var listCache appcache.ListCache
 
 	if cfg.Valkey.Enabled {
 		valkeyCache, err := infrastructurecache.NewValkeyListCache(
@@ -96,7 +96,7 @@ func main() {
 			cfg.Valkey.ClientSideCacheTTL,
 		)
 		if err != nil {
-			log.Error("failed to initialize Valkey cache, fallback to noop cache", "error", err)
+			log.Error("failed to initialize Valkey cache, cache disabled", "error", err)
 		} else {
 			listCache = valkeyCache
 			defer valkeyCache.Close()

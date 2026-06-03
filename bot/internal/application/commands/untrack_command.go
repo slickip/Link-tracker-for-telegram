@@ -38,7 +38,7 @@ func (c *UntrackCommand) Execute(ctx context.Context, chatID int64, text string)
 
 	commandArg := args[1]
 
-	if commandArg == "tag" || !looksLikeURL(commandArg) {
+	if commandArg == "tag" || !isURL(commandArg) {
 		if len(args) < minArgsForTag {
 			if commandArg != "tag" {
 				removedCount, err := c.client.RemoveLinksByTag(ctx, chatID, commandArg)
@@ -76,7 +76,7 @@ func (c *UntrackCommand) Execute(ctx context.Context, chatID int64, text string)
 	return "Ссылка удалена", nil
 }
 
-func looksLikeURL(s string) bool {
+func isURL(s string) bool {
 	s = strings.ToLower(strings.TrimSpace(s))
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }
