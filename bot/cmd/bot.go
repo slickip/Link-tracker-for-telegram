@@ -120,6 +120,14 @@ func main() {
 	updatesHandler := handlers.NewUpdatesHandler(updateService)
 	router := httpserver.NewBotRouter(updatesHandler)
 
+	router = h.RateLimitMiddleware(h.RateLimiterConfig{
+		Enabled:           cfg.RateLimit.Enabled,
+		RequestsPerSecond: cfg.RateLimit.RequestsPerSecond,
+		Burst:             cfg.RateLimit.Burst,
+		CleanupInterval:   cfg.RateLimit.CleanupInterval,
+		TTL:               cfg.RateLimit.TTL,
+	})(router)
+
 	kafkaConsumer, err := kafka.NewLinkUpdateConsumer(
 		kafka.LinkUpdateConsumerConfig{
 			BootstrapServers:    cfg.Kafka.BootstrapServers,
