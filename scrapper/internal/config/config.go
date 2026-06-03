@@ -37,6 +37,7 @@ type Config struct {
 	ExternalAPIPerPage        int
 	ExternalAPIRetry          RetryConfig
 	ExternalAPICircuitBreaker CircuitBreakerConfig
+	RateLimit                 RateLimitConfig
 }
 
 type AccessType string
@@ -99,6 +100,12 @@ const (
 	envExternalAPICircuitBreakerSlidingWindowBucketPeriod     = "EXTERNAL_API_CB_SLIDING_WINDOW_BUCKET_PERIOD"
 	envExternalAPICircuitBreakerWaitDurationInOpenState       = "EXTERNAL_API_CB_WAIT_DURATION_IN_OPEN_STATE"
 	envExternalAPICircuitBreakerPermittedCallsInHalfOpenState = "EXTERNAL_API_CB_PERMITTED_CALLS_IN_HALF_OPEN_STATE"
+
+	envRateLimitEnabled           = "RATE_LIMIT_ENABLED"
+	envRateLimitRequestsPerSecond = "RATE_LIMIT_REQUESTS_PER_SECOND"
+	envRateLimitBurst             = "RATE_LIMIT_BURST"
+	envRateLimitCleanupInterval   = "RATE_LIMIT_CLEANUP_INTERVAL"
+	envRateLimitTTL               = "RATE_LIMIT_TTL"
 )
 
 const (
@@ -154,6 +161,12 @@ const (
 	defaultExternalAPICircuitBreakerSlidingWindowBucketPeriod          = time.Second
 	defaultExternalAPICircuitBreakerWaitDurationInOpenState            = time.Second
 	defaultExternalAPICircuitBreakerPermittedCallsInHalfOpenState uint = 2
+
+	defaultRateLimitEnabled           = true
+	defaultRateLimitRequestsPerSecond = 10.0
+	defaultRateLimitBurst             = 20
+	defaultRateLimitCleanupInterval   = time.Minute
+	defaultRateLimitTTL               = 5 * time.Minute
 )
 
 const (
@@ -211,6 +224,14 @@ type CircuitBreakerConfig struct {
 	SlidingWindowBucketPeriod     time.Duration
 	WaitDurationInOpenState       time.Duration
 	PermittedCallsInHalfOpenState uint32
+}
+
+type RateLimitConfig struct {
+	Enabled           bool
+	RequestsPerSecond float64
+	Burst             int
+	CleanupInterval   time.Duration
+	TTL               time.Duration
 }
 
 func MustLoad() *Config {
@@ -363,6 +384,7 @@ func MustLoad() *Config {
 				defaultExternalAPICircuitBreakerPermittedCallsInHalfOpenState,
 			)),
 		},
+		RateLimit: loadRateLimitConfig(),
 	}
 }
 
@@ -490,4 +512,40 @@ func getEnvFloat64(key string, defaultValue float64) float64 {
 	}
 
 	return parsed
+}
+
+func loadRateLimitConfig() RateLimitConfig {
+	requestsPerSecond := getEnvFloat64(
+		envRateLimitRequestsPerSecond,
+		defaultRateLimitRequestsPerSecond,
+	)
+	if requestsPerSecond <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitRequestsPerSecond)
+	}
+
+	burst := getEnvInt(envRateLimitBurst, defaultRateLimitBurst)
+	if burst <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitBurst)
+	}
+
+	cleanupInterval := getEnvDuration(
+		envRateLimitCleanupInterval,
+		defaultRateLimitCleanupInterval,
+	)
+	if cleanupInterval <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitCleanupInterval)
+	}
+
+	ttl := getEnvDuration(envRateLimitTTL, defaultRateLimitTTL)
+	if ttl <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitTTL)
+	}
+
+	return RateLimitConfig{
+		Enabled:           getEnvBool(envRateLimitEnabled, defaultRateLimitEnabled),
+		RequestsPerSecond: requestsPerSecond,
+		Burst:             burst,
+		CleanupInterval:   cleanupInterval,
+		TTL:               ttl,
+	}
 }

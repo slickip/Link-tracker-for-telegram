@@ -282,6 +282,14 @@ func main() {
 		tagHandler,
 	)
 
+	router = h.RateLimitMiddleware(h.RateLimiterConfig{
+		Enabled:           cfg.RateLimit.Enabled,
+		RequestsPerSecond: cfg.RateLimit.RequestsPerSecond,
+		Burst:             cfg.RateLimit.Burst,
+		CleanupInterval:   cfg.RateLimit.CleanupInterval,
+		TTL:               cfg.RateLimit.TTL,
+	})(router)
+
 	log.Info("scrapper HTTP server starting", "addr", cfg.ScrapperHTTPAddr)
 
 	if err := http.ListenAndServe(cfg.ScrapperHTTPAddr, router); err != nil {

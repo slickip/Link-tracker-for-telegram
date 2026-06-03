@@ -22,6 +22,7 @@ type Config struct {
 	DatabaseURL                string
 	AccessType                 AccessType
 	Kafka                      KafkaConfig
+	RateLimit                  RateLimitConfig
 }
 
 type AccessType string
@@ -59,6 +60,14 @@ type CircuitBreakerConfig struct {
 	PermittedCallsInHalfOpenState uint32
 }
 
+type RateLimitConfig struct {
+	Enabled           bool
+	RequestsPerSecond float64
+	Burst             int
+	CleanupInterval   time.Duration
+	TTL               time.Duration
+}
+
 const (
 	envTelegramToken       = "TELEGRAM_TOKEN"
 	envScrapperURL         = "SCRAPPER_URL"
@@ -91,6 +100,12 @@ const (
 	envScrapperHTTPCircuitBreakerSlidingWindowBucketPeriod     = "SCRAPPER_HTTP_CB_SLIDING_WINDOW_BUCKET_PERIOD"
 	envScrapperHTTPCircuitBreakerWaitDurationInOpenState       = "SCRAPPER_HTTP_CB_WAIT_DURATION_IN_OPEN_STATE"
 	envScrapperHTTPCircuitBreakerPermittedCallsInHalfOpenState = "SCRAPPER_HTTP_CB_PERMITTED_CALLS_IN_HALF_OPEN_STATE"
+
+	envRateLimitEnabled           = "RATE_LIMIT_ENABLED"
+	envRateLimitRequestsPerSecond = "RATE_LIMIT_REQUESTS_PER_SECOND"
+	envRateLimitBurst             = "RATE_LIMIT_BURST"
+	envRateLimitCleanupInterval   = "RATE_LIMIT_CLEANUP_INTERVAL"
+	envRateLimitTTL               = "RATE_LIMIT_TTL"
 )
 
 const (
@@ -124,6 +139,12 @@ const (
 	defaultScrapperHTTPCircuitBreakerSlidingWindowBucketPeriod          = time.Second
 	defaultScrapperHTTPCircuitBreakerWaitDurationInOpenState            = time.Second
 	defaultScrapperHTTPCircuitBreakerPermittedCallsInHalfOpenState uint = 2
+
+	defaultRateLimitEnabled           = true
+	defaultRateLimitRequestsPerSecond = 10.0
+	defaultRateLimitBurst             = 20
+	defaultRateLimitCleanupInterval   = time.Minute
+	defaultRateLimitTTL               = 5 * time.Minute
 )
 
 func MustLoad() *Config {
@@ -216,6 +237,7 @@ func MustLoad() *Config {
 				defaultScrapperHTTPCircuitBreakerPermittedCallsInHalfOpenState,
 			)),
 		},
+		RateLimit: loadRateLimitConfig(),
 	}
 }
 
@@ -340,4 +362,36 @@ func getEnvBool(key string, defaultValue bool) bool {
 	}
 
 	return parsed
+}
+
+func loadRateLimitConfig() RateLimitConfig {
+	requestsPerSecond := getEnvFloat64(
+		envRateLimitRequestsPerSecond,
+		defaultRateLimitRequestsPerSecond,
+	)
+	if requestsPerSecond <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitRequestsPerSecond)
+	}
+
+	burst := getEnvInt(envRateLimitBurst, defaultRateLimitBurst)
+	if burst <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitBurst)
+	}
+
+	return RateLimitConfig{
+		Enabled: getEnvBool(
+			envRateLimitEnabled,
+			defaultRateLimitEnabled,
+		),
+		RequestsPerSecond: requestsPerSecond,
+		Burst:             burst,
+		CleanupInterval: getEnvDuration(
+			envRateLimitCleanupInterval,
+			defaultRateLimitCleanupInterval,
+		),
+		TTL: getEnvDuration(
+			envRateLimitTTL,
+			defaultRateLimitTTL,
+		),
+	}
 }
