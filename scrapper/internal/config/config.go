@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -20,6 +21,8 @@ type Config struct {
 	NotificationTransport NotificationTransport
 	Kafka                 KafkaConfig
 	Outbox                OutboxConfig
+
+	Valkey ValkeyConfig
 
 	CheckInterval time.Duration
 	LinkBatchSize int
@@ -72,6 +75,14 @@ const (
 	envSchemaRegistryURL        = "SCHEMA_REGISTRY_URL"
 	envKafkaLinkUpdatesSubject  = "KAFKA_LINK_UPDATES_SUBJECT"
 	envKafkaSerializationFormat = "KAFKA_SERIALIZATION_FORMAT"
+
+	envValkeyEnabled                = "VALKEY_ENABLED"
+	envValkeyAddresses              = "VALKEY_ADDRESSES"
+	envValkeyUsername               = "VALKEY_USERNAME"
+	envValkeyPassword               = "VALKEY_PASSWORD"
+	envValkeyTTL                    = "VALKEY_TTL"
+	envValkeyClientSideCacheEnabled = "VALKEY_CLIENT_SIDE_CACHE_ENABLED"
+	envValkeyClientSideCacheTTL     = "VALKEY_CLIENT_SIDE_CACHE_TTL"
 )
 
 const (
@@ -106,6 +117,14 @@ const (
 	defaultSchemaRegistryURL        = "http://localhost:18085"
 	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
 	defaultKafkaSerializationFormat = "JSON"
+
+	defaultValkeyEnabled                = true
+	defaultValkeyAddresses              = "localhost:6379,localhost:6380,localhost:6381"
+	defaultValkeyUsername               = ""
+	defaultValkeyPassword               = ""
+	defaultValkeyTTL                    = 5 * time.Minute
+	defaultValkeyClientSideCacheEnabled = true
+	defaultValkeyClientSideCacheTTL     = 30 * time.Second
 )
 
 const (
@@ -136,6 +155,16 @@ type OutboxConfig struct {
 	Enabled         bool
 	PublishInterval time.Duration
 	BatchSize       int
+}
+
+type ValkeyConfig struct {
+	Enabled                bool
+	Addresses              []string
+	Username               string
+	Password               string
+	TTL                    time.Duration
+	ClientSideCacheEnabled bool
+	ClientSideCacheTTL     time.Duration
 }
 
 func MustLoad() *Config {
@@ -197,6 +226,24 @@ func MustLoad() *Config {
 		log.Fatalf("%s must be at least %d", envExternalAPIPerPage, minExternalAPIPerPage)
 	}
 
+	valkeyConfig := ValkeyConfig{
+		Enabled:                getEnvBool(envValkeyEnabled, defaultValkeyEnabled),
+		Addresses:              getEnvStringSlice(envValkeyAddresses, defaultValkeyAddresses),
+		Username:               getEnv(envValkeyUsername, defaultValkeyUsername),
+		Password:               getEnv(envValkeyPassword, defaultValkeyPassword),
+		TTL:                    getEnvDuration(envValkeyTTL, defaultValkeyTTL),
+		ClientSideCacheEnabled: getEnvBool(envValkeyClientSideCacheEnabled, defaultValkeyClientSideCacheEnabled),
+		ClientSideCacheTTL:     getEnvDuration(envValkeyClientSideCacheTTL, defaultValkeyClientSideCacheTTL),
+	}
+
+	if valkeyConfig.Enabled && len(valkeyConfig.Addresses) == 0 {
+		log.Fatalf("%s must not be empty when Valkey is enabled", envValkeyAddresses)
+	}
+
+	if valkeyConfig.Enabled && valkeyConfig.TTL <= 0 {
+		log.Fatalf("%s must be positive when Valkey is enabled", envValkeyTTL)
+	}
+
 	return &Config{
 		BotHTTPURL:       botHTTPURL,
 		BotGRPCAddr:      botGRPCAddr,
@@ -207,6 +254,8 @@ func MustLoad() *Config {
 
 		NotificationTransport: notificationTransport,
 		Kafka:                 kafkaConfig,
+
+		Valkey: valkeyConfig,
 
 		CheckInterval: getEnvDuration(envCheckInterval, defaultCheckInterval),
 		LinkBatchSize: linkBatchSize,
@@ -275,4 +324,20 @@ func getEnvBool(key string, defaultValue bool) bool {
 	}
 
 	return parsed
+}
+
+func getEnvStringSlice(key string, defaultValue string) []string {
+	value := getEnv(key, defaultValue)
+
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+
+	return result
 }

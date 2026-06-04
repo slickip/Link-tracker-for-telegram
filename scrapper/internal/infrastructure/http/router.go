@@ -11,7 +11,6 @@ func NewRouter(
 	linkHandler *handlers.LinkHandler,
 	tagHandler *handlers.TagHandler,
 ) http.Handler {
-
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/tg-chat/", func(w http.ResponseWriter, r *http.Request) {
@@ -26,10 +25,25 @@ func NewRouter(
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	})
 
-	mux.HandleFunc("/links", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/list", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			linkHandler.ListLinks(w, r)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/links/by-tag", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			linkHandler.RemoveLinksByTag(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
+
+	mux.HandleFunc("/links", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
 		case http.MethodPost:
 			linkHandler.AddLink(w, r)
 		case http.MethodDelete:
