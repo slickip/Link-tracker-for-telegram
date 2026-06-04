@@ -20,6 +20,11 @@ const (
 	decimalNum     = 10
 )
 
+const (
+	tgChatIDHeader = "Tg-Chat-Id"
+	decimalNum     = 10
+)
+
 type ScrapperClient interface {
 	RegisterChat(ctx context.Context, chatID int64) error
 	DeleteChat(ctx context.Context, chatID int64) error
@@ -311,6 +316,10 @@ func (c *HTTPscrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64,
 		return 0, err
 	}
 	return removedCount, nil
+}
+
+func setChatIDHeader(req *http.Request, chatID int64) {
+	req.Header.Set(tgChatIDHeader, strconv.FormatInt(chatID, decimalNum))
 }
 
 func setChatIDHeader(req *http.Request, chatID int64) {
