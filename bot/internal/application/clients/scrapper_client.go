@@ -7,14 +7,18 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/sony/gobreaker/v2"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
+	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 )
 
 const (
 	tgChatIDHeader = "Tg-Chat-Id"
 	decimalNum     = 10
+	serviceName    = "scrapper"
 )
 
 type ScrapperClient interface {
@@ -27,14 +31,28 @@ type ScrapperClient interface {
 }
 
 type HTTPscrapperClient struct {
-	baseURL string
-	client  *http.Client
+	baseURL        string
+	client         *http.Client
+	timeout        time.Duration
+	retryConfig    h.HTTPRetryConfig
+	circuitBreaker *gobreaker.CircuitBreaker[struct{}]
 }
 
-func NewScrapperClient(baseURL string) *HTTPscrapperClient {
+func NewScrapperClient(
+	baseURL string,
+	timeout time.Duration,
+	retryConfig h.HTTPRetryConfig,
+	circuitBreakerConfig h.CircuitBreakerConfig,
+) *HTTPscrapperClient {
+	timeout = h.NormalizeTimeout(timeout)
 	return &HTTPscrapperClient{
 		baseURL: baseURL,
-		client:  &http.Client{},
+		client: &http.Client{
+			Timeout: timeout,
+		},
+		timeout:        timeout,
+		retryConfig:    h.NormalizeRetryConfig(retryConfig),
+		circuitBreaker: h.NewCircuitBreaker("bot-to-scrapper", circuitBreakerConfig),
 	}
 }
 
@@ -53,49 +71,58 @@ type removeByTagRequest struct {
 func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) error {
 	url := fmt.Sprintf("%s/tg-chat/%d", c.baseURL, chatID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
-	if err != nil {
-		return err
-	}
+	return h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(ctx, c.timeout, http.MethodPost, url, nil)
+			if err != nil {
+				return err
+			}
+			defer cancel()
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
+			}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
-	}
-
-	return nil
+			return nil
+		})
+	})
 }
 
 func (c *HTTPscrapperClient) DeleteChat(ctx context.Context, chatID int64) error {
 	url := fmt.Sprintf("%s/tg-chat/%d", c.baseURL, chatID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-	if err != nil {
-		return err
-	}
+	return h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(ctx, c.timeout, http.MethodDelete, url, nil)
+			if err != nil {
+				return err
+			}
+			defer cancel()
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
 
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
-	}
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
+			}
 
-	return nil
+			return nil
+		})
+	})
 }
 
 func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr string, tags []string) error {
@@ -108,34 +135,39 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 	if err != nil {
 		return err
 	}
+	return h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(
+				ctx,
+				c.timeout,
+				http.MethodPost,
+				c.baseURL+"/links",
+				bytes.NewBuffer(data),
+			)
+			if err != nil {
+				return err
+			}
+			defer cancel()
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		c.baseURL+"/links",
-		bytes.NewBuffer(data),
-	)
-	if err != nil {
-		return err
-	}
+			req.Header.Set("Content-Type", "application/json")
+			setChatIDHeader(req, chatID)
 
-	req.Header.Set("Content-Type", "application/json")
-	setChatIDHeader(req, chatID)
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
+			}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
-	}
-
-	return nil
+			return nil
+		})
+	})
 }
 
 func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlStr string) error {
@@ -147,64 +179,78 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 	if err != nil {
 		return err
 	}
+	return h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(
+				ctx,
+				c.timeout,
+				http.MethodDelete,
+				c.baseURL+"/links",
+				bytes.NewBuffer(data),
+			)
+			if err != nil {
+				return err
+			}
+			defer cancel()
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodDelete,
-		c.baseURL+"/links",
-		bytes.NewBuffer(data),
-	)
-	if err != nil {
-		return err
-	}
+			req.Header.Set("Content-Type", "application/json")
+			setChatIDHeader(req, chatID)
 
-	req.Header.Set("Content-Type", "application/json")
-	setChatIDHeader(req, chatID)
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
+			}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("scrapper returned status %d", resp.StatusCode)
-	}
-
-	return nil
+			return nil
+		})
+	})
 }
 
 func (c *HTTPscrapperClient) ListLinks(ctx context.Context, chatID int64) ([]domain.Link, error) {
 	url := c.baseURL + "/list"
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	setChatIDHeader(req, chatID)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("scrapper returned status %d", resp.StatusCode)
-	}
-
 	var links []domain.Link
 
-	err = json.NewDecoder(resp.Body).Decode(&links)
+	err := h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(ctx, c.timeout, http.MethodGet, url, nil)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+
+			setChatIDHeader(req, chatID)
+
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
+			}
+
+			links = nil
+			if err := json.NewDecoder(resp.Body).Decode(&links); err != nil {
+				return pkg.ErrInvalidAPIResponse
+			}
+
+			return nil
+		})
+	})
 	if err != nil {
-		return nil, pkg.ErrInvalidAPIResponse
+		return nil, err
 	}
 
 	return links, nil
@@ -220,41 +266,52 @@ func (c *HTTPscrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64,
 		return 0, err
 	}
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodDelete,
-		c.baseURL+"/links/by-tag",
-		bytes.NewBuffer(data),
-	)
+	var removedCount int64
+	err = h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(
+				ctx,
+				c.timeout,
+				http.MethodDelete,
+				c.baseURL+"/links/by-tag",
+				bytes.NewBuffer(data),
+			)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+
+			req.Header.Set("Content-Type", "application/json")
+			setChatIDHeader(req, chatID)
+
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
+			}
+
+			type removeByTagResponse struct {
+				RemovedCount int64 `json:"removedCount"`
+			}
+
+			var result removeByTagResponse
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				return pkg.ErrInvalidAPIResponse
+			}
+			removedCount = result.RemovedCount
+			return nil
+		})
+	})
 	if err != nil {
 		return 0, err
 	}
-
-	req.Header.Set("Content-Type", "application/json")
-	setChatIDHeader(req, chatID)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("scrapper returned status %d", resp.StatusCode)
-	}
-
-	type removeByTagResponse struct {
-		RemovedCount int64 `json:"removedCount"`
-	}
-
-	var result removeByTagResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return 0, pkg.ErrInvalidAPIResponse
-	}
-
-	return result.RemovedCount, nil
+	return removedCount, nil
 }
 
 func setChatIDHeader(req *http.Request, chatID int64) {

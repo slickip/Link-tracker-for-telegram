@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	scrapperpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/scrapper"
+	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	appcache "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/cache"
@@ -135,11 +136,54 @@ func main() {
 		log.Info("bot notification transport initialized", "transport", "KAFKA")
 
 	case config.NotificationTransportHTTP:
-		botClient = clients.NewHTTPBotClient(cfg.BotHTTPURL)
-		log.Info("bot notification transport initialized", "transport", "HTTP")
+		httpBotClient := clients.NewHTTPBotClient(
+			cfg.BotHTTPURL,
+			cfg.ExternalAPITimeout,
+			h.HTTPRetryConfig{
+				MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+				Delay:                 cfg.ExternalAPIRetry.Delay,
+				RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+			},
+		)
+
+		producer, err := kafka.NewConfluentLinkUpdateProducer(
+			kafka.LinkUpdateProducerConfig{
+				BootstrapServers:    cfg.Kafka.BootstrapServers,
+				Topic:               cfg.Kafka.LinkUpdatesTopic,
+				ClientID:            cfg.Kafka.ClientID,
+				SchemaRegistryURL:   cfg.Kafka.SchemaRegistryURL,
+				LinkUpdatesSubject:  cfg.Kafka.LinkUpdatesSubject,
+				SerializationFormat: cfg.Kafka.SerializationFormat,
+			},
+		)
+		if err != nil {
+			log.Error("failed to init kafka fallback producer", "error", err)
+			os.Exit(1)
+		}
+
+		linkUpdateProducer = producer
+		defer linkUpdateProducer.Close()
+
+		kafkaBotClient := clients.NewKafkaBotClient(linkUpdateProducer)
+
+		botClient = clients.NewFallbackBotClient(
+			httpBotClient,
+			kafkaBotClient,
+			log,
+		)
+
+		log.Info("bot notification transport initialized", "transport", "HTTP_WITH_KAFKA_FALLBACK")
 
 	case config.NotificationTransportGRPC:
-		httpBotClient := clients.NewHTTPBotClient(cfg.BotHTTPURL)
+		httpBotClient := clients.NewHTTPBotClient(
+			cfg.BotHTTPURL,
+			cfg.ExternalAPITimeout,
+			h.HTTPRetryConfig{
+				MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+				Delay:                 cfg.ExternalAPIRetry.Delay,
+				RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+			},
+		)
 
 		grpcBotClient, err := clients.NewGRPCBotClient(cfg.BotGRPCAddr)
 		if err != nil {
@@ -160,14 +204,42 @@ func main() {
 		BaseURL: cfg.GitHubBaseURL,
 		Token:   cfg.GitHubToken,
 		Timeout: cfg.ExternalAPITimeout,
+		Retry: h.HTTPRetryConfig{
+			MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+			Delay:                 cfg.ExternalAPIRetry.Delay,
+			RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+		},
 		PerPage: cfg.ExternalAPIPerPage,
+		CircuitBreaker: h.CircuitBreakerConfig{
+			Enabled:                       cfg.ExternalAPICircuitBreaker.Enabled,
+			FailureRateThreshold:          cfg.ExternalAPICircuitBreaker.FailureRateThreshold,
+			MinimumRequests:               cfg.ExternalAPICircuitBreaker.MinimumRequests,
+			SlidingWindowInterval:         cfg.ExternalAPICircuitBreaker.SlidingWindowInterval,
+			SlidingWindowBucketPeriod:     cfg.ExternalAPICircuitBreaker.SlidingWindowBucketPeriod,
+			WaitDurationInOpenState:       cfg.ExternalAPICircuitBreaker.WaitDurationInOpenState,
+			PermittedCallsInHalfOpenState: cfg.ExternalAPICircuitBreaker.PermittedCallsInHalfOpenState,
+		},
 	})
 
 	soClient := clients.NewStackOverflowClient(clients.StackOverflowClientConfig{
 		BaseURL: cfg.StackOverflowBaseURL,
 		Site:    cfg.StackOverflowSite,
 		Timeout: cfg.ExternalAPITimeout,
+		Retry: h.HTTPRetryConfig{
+			MaxAttempts:           cfg.ExternalAPIRetry.MaxAttempts,
+			Delay:                 cfg.ExternalAPIRetry.Delay,
+			RetryableHTTPStatuses: cfg.ExternalAPIRetry.RetryableHTTPStatuses,
+		},
 		PerPage: cfg.ExternalAPIPerPage,
+		CircuitBreaker: h.CircuitBreakerConfig{
+			Enabled:                       cfg.ExternalAPICircuitBreaker.Enabled,
+			FailureRateThreshold:          cfg.ExternalAPICircuitBreaker.FailureRateThreshold,
+			MinimumRequests:               cfg.ExternalAPICircuitBreaker.MinimumRequests,
+			SlidingWindowInterval:         cfg.ExternalAPICircuitBreaker.SlidingWindowInterval,
+			SlidingWindowBucketPeriod:     cfg.ExternalAPICircuitBreaker.SlidingWindowBucketPeriod,
+			WaitDurationInOpenState:       cfg.ExternalAPICircuitBreaker.WaitDurationInOpenState,
+			PermittedCallsInHalfOpenState: cfg.ExternalAPICircuitBreaker.PermittedCallsInHalfOpenState,
+		},
 	})
 
 	scheduler := services.NewScheduler(
@@ -236,6 +308,14 @@ func main() {
 		linkHandler,
 		tagHandler,
 	)
+
+	router = h.RateLimitMiddleware(h.RateLimiterConfig{
+		Enabled:           cfg.RateLimit.Enabled,
+		RequestsPerSecond: cfg.RateLimit.RequestsPerSecond,
+		Burst:             cfg.RateLimit.Burst,
+		CleanupInterval:   cfg.RateLimit.CleanupInterval,
+		TTL:               cfg.RateLimit.TTL,
+	})(router)
 
 	log.Info("scrapper HTTP server starting", "addr", cfg.ScrapperHTTPAddr)
 

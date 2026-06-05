@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sony/gobreaker/v2"
+	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
@@ -49,21 +51,30 @@ const (
 
 const (
 	stackOverflowQuestionNotFoundError = "stackoverflow question not found"
-	stackOverflowStatusErrorFormat     = "stackoverflow status %d"
+)
+
+const (
+	stackOverflowName               = "stackoverflow"
+	stackOverflowCircuitBreakerName = "stackoverflow-client"
 )
 
 type StackOverflowClient struct {
-	client  *http.Client
-	baseURL string
-	site    string
-	perPage int
+	client         *http.Client
+	baseURL        string
+	site           string
+	timeout        time.Duration
+	perPage        int
+	retryConfig    h.HTTPRetryConfig
+	circuitBreaker *gobreaker.CircuitBreaker[struct{}]
 }
 
 type StackOverflowClientConfig struct {
-	BaseURL string
-	Site    string
-	Timeout time.Duration
-	PerPage int
+	BaseURL        string
+	Site           string
+	Timeout        time.Duration
+	PerPage        int
+	Retry          h.HTTPRetryConfig
+	CircuitBreaker h.CircuitBreakerConfig
 }
 
 type stackOverflowQuestionResponse struct {
@@ -119,9 +130,12 @@ func NewStackOverflowClient(cfg StackOverflowClientConfig) *StackOverflowClient 
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		baseURL: baseURL,
-		site:    site,
-		perPage: perPage,
+		baseURL:        baseURL,
+		site:           site,
+		timeout:        timeout,
+		perPage:        perPage,
+		retryConfig:    h.NormalizeRetryConfig(cfg.Retry),
+		circuitBreaker: h.NewCircuitBreaker(stackOverflowCircuitBreakerName, cfg.CircuitBreaker),
 	}
 }
 
@@ -316,28 +330,33 @@ func (c *StackOverflowClient) buildURL(path string, params map[string]string) (s
 }
 
 func (c *StackOverflowClient) getJSON(ctx context.Context, endpoint string, target any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return err
-	}
+	return h.DoWithCircuitBreaker(c.circuitBreaker, func() error {
+		return h.DoWithHTTPRetry(ctx, c.retryConfig, func() error {
+			req, cancel, err := h.NewRequestWithTimeout(ctx, c.timeout, http.MethodGet, endpoint, nil)
+			if err != nil {
+				return err
+			}
+			defer cancel()
 
-	req.Header.Set(userAgentHeader, userAgentValue)
+			req.Header.Set(userAgentHeader, userAgentValue)
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(stackOverflowStatusErrorFormat, resp.StatusCode)
-	}
+			if resp.StatusCode != http.StatusOK {
+				return h.NewHTTPStatusError(stackOverflowName, resp.StatusCode, c.retryConfig)
+			}
 
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return err
-	}
+			if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+				return err
+			}
 
-	return nil
+			return nil
+		})
+	})
 }
