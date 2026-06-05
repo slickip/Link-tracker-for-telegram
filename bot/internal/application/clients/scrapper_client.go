@@ -18,6 +18,7 @@ import (
 const (
 	tgChatIDHeader = "Tg-Chat-Id"
 	decimalNum     = 10
+	serviceName    = "scrapper"
 )
 
 type ScrapperClient interface {
@@ -87,7 +88,7 @@ func (c *HTTPscrapperClient) RegisterChat(ctx context.Context, chatID int64) err
 			}()
 
 			if resp.StatusCode != http.StatusOK {
-				return h.NewHTTPStatusError("scrapper", resp.StatusCode, c.retryConfig)
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
 			}
 
 			return nil
@@ -116,7 +117,7 @@ func (c *HTTPscrapperClient) DeleteChat(ctx context.Context, chatID int64) error
 			}()
 
 			if resp.StatusCode != http.StatusOK {
-				return h.NewHTTPStatusError("scrapper", resp.StatusCode, c.retryConfig)
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
 			}
 
 			return nil
@@ -161,7 +162,7 @@ func (c *HTTPscrapperClient) AddLink(ctx context.Context, chatID int64, urlStr s
 			}()
 
 			if resp.StatusCode != http.StatusOK {
-				return h.NewHTTPStatusError("scrapper", resp.StatusCode, c.retryConfig)
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
 			}
 
 			return nil
@@ -205,7 +206,7 @@ func (c *HTTPscrapperClient) RemoveLink(ctx context.Context, chatID int64, urlSt
 			}()
 
 			if resp.StatusCode != http.StatusOK {
-				return h.NewHTTPStatusError("scrapper", resp.StatusCode, c.retryConfig)
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
 			}
 
 			return nil
@@ -237,7 +238,7 @@ func (c *HTTPscrapperClient) ListLinks(ctx context.Context, chatID int64) ([]dom
 			}()
 
 			if resp.StatusCode != http.StatusOK {
-				return h.NewHTTPStatusError("scrapper", resp.StatusCode, c.retryConfig)
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
 			}
 
 			links = nil
@@ -292,7 +293,7 @@ func (c *HTTPscrapperClient) RemoveLinksByTag(ctx context.Context, chatID int64,
 			}()
 
 			if resp.StatusCode != http.StatusOK {
-				return h.NewHTTPStatusError("scrapper", resp.StatusCode, c.retryConfig)
+				return h.NewHTTPStatusError(serviceName, resp.StatusCode, c.retryConfig)
 			}
 
 			type removeByTagResponse struct {
