@@ -11,12 +11,13 @@ import (
 )
 
 type Config struct {
-	BotHTTPURL       string
-	BotGRPCAddr      string
-	ScrapperHTTPAddr string
-	ScrapperGRPCAddr string
-	DatabaseURL      string
-	AccessType       AccessType
+	BotHTTPURL          string
+	BotGRPCAddr         string
+	ScrapperHTTPAddr    string
+	ScrapperGRPCAddr    string
+	ScrapperHTTPTimeout time.Duration
+	DatabaseURL         string
+	AccessType          AccessType
 
 	NotificationTransport NotificationTransport
 	Kafka                 KafkaConfig
@@ -28,12 +29,15 @@ type Config struct {
 	LinkBatchSize int
 	WorkerCount   int
 
-	GitHubBaseURL        string
-	GitHubToken          string
-	StackOverflowBaseURL string
-	StackOverflowSite    string
-	ExternalAPITimeout   time.Duration
-	ExternalAPIPerPage   int
+	GitHubBaseURL             string
+	GitHubToken               string
+	StackOverflowBaseURL      string
+	StackOverflowSite         string
+	ExternalAPITimeout        time.Duration
+	ExternalAPIPerPage        int
+	ExternalAPIRetry          RetryConfig
+	ExternalAPICircuitBreaker CircuitBreakerConfig
+	RateLimit                 RateLimitConfig
 }
 
 type AccessType string
@@ -44,12 +48,13 @@ const (
 )
 
 const (
-	envBotHTTPURL       = "BOT_HTTP_URL"
-	envBotGRPCAddr      = "BOT_GRPC_ADDR"
-	envScrapperHTTPAddr = "SCRAPPER_HTTP_ADDR"
-	envScrapperGRPCAddr = "SCRAPPER_GRPC_ADDR"
-	envDatabaseURL      = "DATABASE_URL"
-	envAccessType       = "ACCESS_TYPE"
+	envBotHTTPURL          = "BOT_HTTP_URL"
+	envBotGRPCAddr         = "BOT_GRPC_ADDR"
+	envScrapperHTTPAddr    = "SCRAPPER_HTTP_ADDR"
+	envScrapperGRPCAddr    = "SCRAPPER_GRPC_ADDR"
+	envScrapperHTTPTimeout = "SCRAPPER_HTTP_TIMEOUT"
+	envDatabaseURL         = "DATABASE_URL"
+	envAccessType          = "ACCESS_TYPE"
 
 	envCheckInterval = "CHECK_INTERVAL"
 	envLinkBatchSize = "LINK_BATCH_SIZE"
@@ -83,15 +88,34 @@ const (
 	envValkeyTTL                    = "VALKEY_TTL"
 	envValkeyClientSideCacheEnabled = "VALKEY_CLIENT_SIDE_CACHE_ENABLED"
 	envValkeyClientSideCacheTTL     = "VALKEY_CLIENT_SIDE_CACHE_TTL"
+
+	envExternalAPIRetryMaxAttempts      = "EXTERNAL_API_RETRY_MAX_ATTEMPTS"
+	envExternalAPIRetryDelay            = "EXTERNAL_API_RETRY_DELAY"
+	envExternalAPIRetryableHTTPStatuses = "EXTERNAL_API_RETRYABLE_STATUSES"
+
+	envExternalAPICircuitBreakerEnabled                       = "EXTERNAL_API_CB_ENABLED"
+	envExternalAPICircuitBreakerFailureRateThreshold          = "EXTERNAL_API_CB_FAILURE_RATE_THRESHOLD"
+	envExternalAPICircuitBreakerMinimumRequests               = "EXTERNAL_API_CB_MINIMUM_REQUESTS"
+	envExternalAPICircuitBreakerSlidingWindowInterval         = "EXTERNAL_API_CB_SLIDING_WINDOW_INTERVAL"
+	envExternalAPICircuitBreakerSlidingWindowBucketPeriod     = "EXTERNAL_API_CB_SLIDING_WINDOW_BUCKET_PERIOD"
+	envExternalAPICircuitBreakerWaitDurationInOpenState       = "EXTERNAL_API_CB_WAIT_DURATION_IN_OPEN_STATE"
+	envExternalAPICircuitBreakerPermittedCallsInHalfOpenState = "EXTERNAL_API_CB_PERMITTED_CALLS_IN_HALF_OPEN_STATE"
+
+	envRateLimitEnabled           = "RATE_LIMIT_ENABLED"
+	envRateLimitRequestsPerSecond = "RATE_LIMIT_REQUESTS_PER_SECOND"
+	envRateLimitBurst             = "RATE_LIMIT_BURST"
+	envRateLimitCleanupInterval   = "RATE_LIMIT_CLEANUP_INTERVAL"
+	envRateLimitTTL               = "RATE_LIMIT_TTL"
 )
 
 const (
-	defaultBotHTTPURL       = "http://localhost:8080"
-	defaultBotGRPCAddr      = "localhost:8082"
-	defaultScrapperHTTPAddr = ":8081"
-	defaultScrapperGRPCAddr = ":8083"
-	defaultDatabaseURL      = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
-	defaultAccessType       = string(AccessTypeSQL)
+	defaultBotHTTPURL          = "http://localhost:8080"
+	defaultBotGRPCAddr         = "localhost:8082"
+	defaultScrapperHTTPAddr    = ":8081"
+	defaultScrapperGRPCAddr    = ":8083"
+	defaultScrapperHTTPTimeout = 5 * time.Second
+	defaultDatabaseURL         = "postgres://postgres:12345@localhost:5432/notesdb?sslmode=disable"
+	defaultAccessType          = string(AccessTypeSQL)
 
 	defaultCheckInterval = 30 * time.Second
 	defaultLinkBatchSize = 100
@@ -104,7 +128,7 @@ const (
 	defaultExternalAPITimeout   = 10 * time.Second
 	defaultExternalAPIPerPage   = 100
 
-	defaultNotificationTransport = string(NotificationTransportKafka)
+	defaultNotificationTransport = string(NotificationTransportHTTP)
 
 	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
 	defaultKafkaLinkUpdatesTopic = "link-updates"
@@ -125,6 +149,24 @@ const (
 	defaultValkeyTTL                    = 5 * time.Minute
 	defaultValkeyClientSideCacheEnabled = true
 	defaultValkeyClientSideCacheTTL     = 30 * time.Second
+
+	defaultExternalAPIRetryMaxAttempts      uint = 3
+	defaultExternalAPIRetryDelay                 = 500 * time.Millisecond
+	defaultExternalAPIRetryableHTTPStatuses      = "429,500,502,503,504"
+
+	defaultExternalAPICircuitBreakerEnabled                            = true
+	defaultExternalAPICircuitBreakerFailureRateThreshold               = 50.0
+	defaultExternalAPICircuitBreakerMinimumRequests               uint = 2
+	defaultExternalAPICircuitBreakerSlidingWindowInterval              = 10 * time.Second
+	defaultExternalAPICircuitBreakerSlidingWindowBucketPeriod          = time.Second
+	defaultExternalAPICircuitBreakerWaitDurationInOpenState            = time.Second
+	defaultExternalAPICircuitBreakerPermittedCallsInHalfOpenState uint = 2
+
+	defaultRateLimitEnabled           = true
+	defaultRateLimitRequestsPerSecond = 10.0
+	defaultRateLimitBurst             = 20
+	defaultRateLimitCleanupInterval   = time.Minute
+	defaultRateLimitTTL               = 5 * time.Minute
 )
 
 const (
@@ -132,6 +174,7 @@ const (
 	maxLinkBatchSize      = 500
 	minWorkerCount        = 1
 	minExternalAPIPerPage = 1
+	float64BitSize        = 64
 )
 
 type NotificationTransport string
@@ -165,6 +208,30 @@ type ValkeyConfig struct {
 	TTL                    time.Duration
 	ClientSideCacheEnabled bool
 	ClientSideCacheTTL     time.Duration
+}
+
+type RetryConfig struct {
+	MaxAttempts           uint
+	Delay                 time.Duration
+	RetryableHTTPStatuses []int
+}
+
+type CircuitBreakerConfig struct {
+	Enabled                       bool
+	FailureRateThreshold          float64
+	MinimumRequests               uint32
+	SlidingWindowInterval         time.Duration
+	SlidingWindowBucketPeriod     time.Duration
+	WaitDurationInOpenState       time.Duration
+	PermittedCallsInHalfOpenState uint32
+}
+
+type RateLimitConfig struct {
+	Enabled           bool
+	RequestsPerSecond float64
+	Burst             int
+	CleanupInterval   time.Duration
+	TTL               time.Duration
 }
 
 func MustLoad() *Config {
@@ -245,12 +312,13 @@ func MustLoad() *Config {
 	}
 
 	return &Config{
-		BotHTTPURL:       botHTTPURL,
-		BotGRPCAddr:      botGRPCAddr,
-		ScrapperHTTPAddr: scrapperHTTPAddr,
-		ScrapperGRPCAddr: scrapperGRPCAddr,
-		DatabaseURL:      databaseURL,
-		AccessType:       accessType,
+		BotHTTPURL:          botHTTPURL,
+		BotGRPCAddr:         botGRPCAddr,
+		ScrapperHTTPAddr:    scrapperHTTPAddr,
+		ScrapperGRPCAddr:    scrapperGRPCAddr,
+		ScrapperHTTPTimeout: getEnvDuration(envScrapperHTTPTimeout, defaultScrapperHTTPTimeout),
+		DatabaseURL:         databaseURL,
+		AccessType:          accessType,
 
 		NotificationTransport: notificationTransport,
 		Kafka:                 kafkaConfig,
@@ -272,6 +340,51 @@ func MustLoad() *Config {
 			PublishInterval: getEnvDuration(envOutboxPublishInterval, defaultOutboxPublishInterval),
 			BatchSize:       getEnvInt(envOutboxBatchSize, defaultOutboxBatchSize),
 		},
+		ExternalAPIRetry: RetryConfig{
+			MaxAttempts: getEnvUint(
+				envExternalAPIRetryMaxAttempts,
+				defaultExternalAPIRetryMaxAttempts,
+			),
+			Delay: getEnvDuration(
+				envExternalAPIRetryDelay,
+				defaultExternalAPIRetryDelay,
+			),
+			RetryableHTTPStatuses: getEnvIntSlice(
+				envExternalAPIRetryableHTTPStatuses,
+				defaultExternalAPIRetryableHTTPStatuses,
+			),
+		},
+		ExternalAPICircuitBreaker: CircuitBreakerConfig{
+			Enabled: getEnvBool(
+				envExternalAPICircuitBreakerEnabled,
+				defaultExternalAPICircuitBreakerEnabled,
+			),
+			FailureRateThreshold: getEnvFloat64(
+				envExternalAPICircuitBreakerFailureRateThreshold,
+				defaultExternalAPICircuitBreakerFailureRateThreshold,
+			),
+			MinimumRequests: uint32(getEnvUint(
+				envExternalAPICircuitBreakerMinimumRequests,
+				defaultExternalAPICircuitBreakerMinimumRequests,
+			)),
+			SlidingWindowInterval: getEnvDuration(
+				envExternalAPICircuitBreakerSlidingWindowInterval,
+				defaultExternalAPICircuitBreakerSlidingWindowInterval,
+			),
+			SlidingWindowBucketPeriod: getEnvDuration(
+				envExternalAPICircuitBreakerSlidingWindowBucketPeriod,
+				defaultExternalAPICircuitBreakerSlidingWindowBucketPeriod,
+			),
+			WaitDurationInOpenState: getEnvDuration(
+				envExternalAPICircuitBreakerWaitDurationInOpenState,
+				defaultExternalAPICircuitBreakerWaitDurationInOpenState,
+			),
+			PermittedCallsInHalfOpenState: uint32(getEnvUint(
+				envExternalAPICircuitBreakerPermittedCallsInHalfOpenState,
+				defaultExternalAPICircuitBreakerPermittedCallsInHalfOpenState,
+			)),
+		},
+		RateLimit: loadRateLimitConfig(),
 	}
 }
 
@@ -340,4 +453,99 @@ func getEnvStringSlice(key string, defaultValue string) []string {
 	}
 
 	return result
+}
+
+func getEnvUint(key string, defaultValue uint) uint {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseUint(value, 10, 0)
+	if err != nil {
+		log.Fatalf("invalid uint value for %s: %s", key, value)
+	}
+
+	if parsed == 0 {
+		log.Fatalf("%s must be positive", key)
+	}
+
+	return uint(parsed)
+}
+
+func getEnvIntSlice(key string, defaultValue string) []int {
+	value := getEnv(key, defaultValue)
+
+	parts := strings.Split(value, ",")
+	result := make([]int, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		parsed, err := strconv.Atoi(part)
+		if err != nil {
+			log.Fatalf("invalid int value in %s: %s", key, part)
+		}
+
+		result = append(result, parsed)
+	}
+
+	if len(result) == 0 {
+		log.Fatalf("%s must not be empty", key)
+	}
+
+	return result
+}
+
+func getEnvFloat64(key string, defaultValue float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseFloat(value, float64BitSize)
+	if err != nil {
+		log.Fatalf("invalid float value for %s: %s", key, value)
+	}
+
+	return parsed
+}
+
+func loadRateLimitConfig() RateLimitConfig {
+	requestsPerSecond := getEnvFloat64(
+		envRateLimitRequestsPerSecond,
+		defaultRateLimitRequestsPerSecond,
+	)
+	if requestsPerSecond <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitRequestsPerSecond)
+	}
+
+	burst := getEnvInt(envRateLimitBurst, defaultRateLimitBurst)
+	if burst <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitBurst)
+	}
+
+	cleanupInterval := getEnvDuration(
+		envRateLimitCleanupInterval,
+		defaultRateLimitCleanupInterval,
+	)
+	if cleanupInterval <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitCleanupInterval)
+	}
+
+	ttl := getEnvDuration(envRateLimitTTL, defaultRateLimitTTL)
+	if ttl <= 0 {
+		log.Fatalf("%s must be positive", envRateLimitTTL)
+	}
+
+	return RateLimitConfig{
+		Enabled:           getEnvBool(envRateLimitEnabled, defaultRateLimitEnabled),
+		RequestsPerSecond: requestsPerSecond,
+		Burst:             burst,
+		CleanupInterval:   cleanupInterval,
+		TTL:               ttl,
+	}
 }
