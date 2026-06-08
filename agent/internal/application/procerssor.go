@@ -36,6 +36,8 @@ func (p *Processor) Process(
 		return api.LinkUpdate{}, false, nil
 	}
 
+	priority := p.priorityService.DeterminePriority(update.Description)
+
 	if utf8.RuneCountInString(update.Description) > p.threshold {
 		summary, err := p.summarizer.Summarize(ctx, update.Description, p.threshold)
 		if err != nil {
@@ -45,7 +47,7 @@ func (p *Processor) Process(
 		update.Description = summary
 	}
 
-	update.Priority = string(p.priorityService.DeterminePriority(update.Description))
+	update.Priority = string(priority)
 
 	return update, true, nil
 }
