@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/infrastructure/ai"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 	appkafka "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 )
 
 type testAgentHandler struct {
@@ -67,7 +69,7 @@ func TestAIAgent_ShouldReceiveAndProcessCorrectKafkaMessage_TC_1_1(t *testing.T)
 			[]string{"bot-user"},
 			20,
 		),
-		ai.NewStubSummarizer(),
+		ai.NewStubSummarizer(logger.New(slog.LevelInfo)),
 		500,
 	)
 
@@ -168,7 +170,7 @@ func TestAIAgent_ShouldHandleInvalidKafkaMessageWithoutCrash_TC_1_2(t *testing.T
 
 	processor := application.NewProcessor(
 		application.NewFilterService(nil, nil, 1),
-		ai.NewStubSummarizer(),
+		ai.NewStubSummarizer(logger.New(slog.LevelInfo)),
 		500,
 	)
 

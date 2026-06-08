@@ -2,13 +2,18 @@ package ai
 
 import (
 	"context"
-	"unicode/utf8"
+
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 )
 
-type StubSummarizer struct{}
+type StubSummarizer struct {
+	log *logger.Slog
+}
 
-func NewStubSummarizer() *StubSummarizer {
-	return &StubSummarizer{}
+func NewStubSummarizer(log *logger.Slog) *StubSummarizer {
+	return &StubSummarizer{
+		log: log,
+	}
 }
 
 func (s *StubSummarizer) Summarize(
@@ -23,13 +28,12 @@ func (s *StubSummarizer) Summarize(
 	}
 
 	if threshold <= 0 {
-		return "...", nil
-	}
-
-	if utf8.RuneCountInString(text) <= threshold {
+		s.log.Error(
+			"invalid summarization threshold",
+			"threshold", threshold,
+		)
 		return text, nil
 	}
 
-	runes := []rune(text)
-	return string(runes[:threshold]) + "...", nil
+	return cutWithEllipsis(text, threshold), nil
 }
