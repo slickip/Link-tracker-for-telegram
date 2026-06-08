@@ -1,0 +1,136 @@
+package ai
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+)
+
+const (
+	logInvalidThreshold = "invalid summarization threshold"
+	logFallbackToStub   = "fallback to stub summarization"
+
+	reasonRequestFailed = "request_failed"
+	reasonBadStatus     = "bad_status"
+	reasonDecodeFailed  = "decode_failed"
+	reasonEmptyResponse = "empty_response"
+)
+
+type HuggingFaceSummarizer struct {
+	client *http.Client
+	apiURL string
+	token  string
+	log    *logger.Slog
+}
+
+func NewHuggingFaceSummarizer(
+	apiURL string,
+	token string,
+	timeout time.Duration,
+	log *logger.Slog,
+) *HuggingFaceSummarizer {
+	return &HuggingFaceSummarizer{
+		client: &http.Client{
+			Timeout: timeout,
+		},
+		apiURL: strings.TrimSpace(apiURL),
+		token:  strings.TrimSpace(token),
+		log:    log,
+	}
+}
+
+type huggingFaceRequest struct {
+	Inputs string `json:"inputs"`
+}
+
+type huggingFaceResponseItem struct {
+	SummaryText string `json:"summary_text"`
+}
+
+func (s *HuggingFaceSummarizer) Summarize(
+	ctx context.Context,
+	text string,
+	threshold int,
+) (string, error) {
+	if threshold <= 0 {
+		s.log.Error(
+			logInvalidThreshold,
+			"threshold", threshold,
+		)
+		return text, nil
+	}
+
+	if s.apiURL == "" {
+		return cutWithEllipsis(text, threshold), nil
+	}
+
+	payload, err := json.Marshal(huggingFaceRequest{
+		Inputs: "Summarize the following update in 2-3 sentences:\n\n" + text,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		s.apiURL,
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if s.token != "" {
+		req.Header.Set("Authorization", "Bearer "+s.token)
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonRequestFailed,
+			"error", err,
+		)
+		return cutWithEllipsis(text, threshold), nil
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < http.StatusOK ||
+		resp.StatusCode >= http.StatusMultipleChoices {
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonBadStatus,
+			"status_code", resp.StatusCode,
+		)
+		return cutWithEllipsis(text, threshold), nil
+	}
+
+	var response []huggingFaceResponseItem
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonDecodeFailed,
+			"error", err,
+		)
+		return cutWithEllipsis(text, threshold), nil
+	}
+
+	if len(response) == 0 || strings.TrimSpace(response[0].SummaryText) == "" {
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonEmptyResponse,
+		)
+		return cutWithEllipsis(text, threshold), nil
+	}
+
+	return strings.TrimSpace(response[0].SummaryText), nil
+}
