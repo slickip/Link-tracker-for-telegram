@@ -4,25 +4,24 @@ import (
 	"context"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 )
 
 type Handler struct {
-	processor *Processor
-	producer  kafka.LinkUpdateProducer
-	log       *logger.Slog
+	processor       *Processor
+	groupingService *GroupingService
+	log             *logger.Slog
 }
 
 func NewHandler(
 	processor *Processor,
-	producer kafka.LinkUpdateProducer,
+	groupingService *GroupingService,
 	log *logger.Slog,
 ) *Handler {
 	return &Handler{
-		processor: processor,
-		producer:  producer,
-		log:       log,
+		processor:       processor,
+		groupingService: groupingService,
+		log:             log,
 	}
 }
 
@@ -44,12 +43,10 @@ func (h *Handler) HandleLinkUpdate(
 		return nil
 	}
 
-	if err := h.producer.Produce(ctx, processedUpdate); err != nil {
-		return err
-	}
+	h.groupingService.Add(ctx, processedUpdate)
 
 	h.log.Info(
-		"link update processed",
+		"link update accepted for grouping",
 		"id", processedUpdate.ID,
 		"priority", processedUpdate.Priority,
 	)
