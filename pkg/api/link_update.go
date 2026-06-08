@@ -19,6 +19,7 @@ type LinkUpdate struct {
 	Preview   string    `json:"preview"`
 
 	Description string `json:"description"`
+	Priority    string `json:"priority,omitempty"`
 }
 
 func (u LinkUpdate) SubscriberNotificationBody() string {
