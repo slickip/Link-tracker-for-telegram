@@ -29,7 +29,7 @@ func (s *StubSummarizer) Summarize(
 
 	if threshold <= 0 {
 		s.log.Error(
-			"invalid summarization threshold",
+			logInvalidThreshold,
 			"threshold", threshold,
 		)
 		return text, nil
