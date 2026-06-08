@@ -38,6 +38,7 @@ func TestProcessor_ShouldSummarizeLongText_TC_3_1(t *testing.T) {
 	processor := NewProcessor(
 		NewFilterService(nil, nil, 1),
 		summarizer,
+		NewPriorityService([]string{"critical"}, []string{"typo"}),
 		20,
 	)
 
@@ -56,7 +57,7 @@ func TestProcessor_ShouldSummarizeLongText_TC_3_1(t *testing.T) {
 	require.True(t, summarizer.called)
 	require.Equal(t, "short summary", result.Description)
 	require.NotEqual(t, originalText, result.Description)
-	require.Equal(t, DefaultPriority, result.Priority)
+	require.Equal(t, string(PriorityMedium), result.Priority)
 }
 
 func TestProcessor_ShouldNotSummarizeShortText_TC_3_2(t *testing.T) {
@@ -67,6 +68,7 @@ func TestProcessor_ShouldNotSummarizeShortText_TC_3_2(t *testing.T) {
 	processor := NewProcessor(
 		NewFilterService(nil, nil, 1),
 		summarizer,
+		NewPriorityService([]string{"critical"}, []string{"typo"}),
 		100,
 	)
 
@@ -84,30 +86,5 @@ func TestProcessor_ShouldNotSummarizeShortText_TC_3_2(t *testing.T) {
 	require.True(t, ok)
 	require.False(t, summarizer.called)
 	require.Equal(t, originalText, result.Description)
-	require.Equal(t, DefaultPriority, result.Priority)
-}
-
-func TestProcessor_ShouldIgnoreFilteredUpdate(t *testing.T) {
-	t.Parallel()
-
-	summarizer := &fakeSummarizer{}
-
-	processor := NewProcessor(
-		NewFilterService([]string{"spam"}, nil, 1),
-		summarizer,
-		100,
-	)
-
-	result, ok, err := processor.Process(context.Background(), api.LinkUpdate{
-		ID:          1,
-		URL:         "https://github.com/test/repo",
-		TgChatIDs:   []int64{111},
-		Username:    "normal-user",
-		Description: "spam message",
-	})
-
-	require.NoError(t, err)
-	require.False(t, ok)
-	require.False(t, summarizer.called)
-	require.Empty(t, result)
+	require.Equal(t, string(PriorityMedium), result.Priority)
 }

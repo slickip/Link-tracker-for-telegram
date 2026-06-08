@@ -7,23 +7,24 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 )
 
-const DefaultPriority = "HIGH"
-
 type Processor struct {
-	filterService *FilterService
-	summarizer    Summarizer
-	threshold     int
+	filterService   *FilterService
+	summarizer      Summarizer
+	priorityService *PriorityService
+	threshold       int
 }
 
 func NewProcessor(
 	filterService *FilterService,
 	summarizer Summarizer,
+	priorityService *PriorityService,
 	threshold int,
 ) *Processor {
 	return &Processor{
-		filterService: filterService,
-		summarizer:    summarizer,
-		threshold:     threshold,
+		filterService:   filterService,
+		summarizer:      summarizer,
+		priorityService: priorityService,
+		threshold:       threshold,
 	}
 }
 
@@ -44,7 +45,7 @@ func (p *Processor) Process(
 		update.Description = summary
 	}
 
-	update.Priority = DefaultPriority
+	update.Priority = string(p.priorityService.DeterminePriority(update.Description))
 
 	return update, true, nil
 }

@@ -20,28 +20,7 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 )
 
-type testAgentHandler struct {
-	processor *application.Processor
-	producer  appkafka.LinkUpdateProducer
-}
-
-func (h *testAgentHandler) HandleLinkUpdate(
-	ctx context.Context,
-	update api.LinkUpdate,
-) error {
-	processed, ok, err := h.processor.Process(ctx, update)
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		return nil
-	}
-
-	return h.producer.Produce(ctx, processed)
-}
-
-func TestAIAgent_ShouldReceiveAndProcessCorrectKafkaMessage_TC_1_1(t *testing.T) {
+func TestAIAgent_ShouldPublishProcessedMessage_TC_3_1(t *testing.T) {
 	ctx := context.Background()
 
 	brokers := startKafka(t, ctx)
@@ -51,6 +30,8 @@ func TestAIAgent_ShouldReceiveAndProcessCorrectKafkaMessage_TC_1_1(t *testing.T)
 	dlqTopic := uniqueTopic("link.raw-updates-dlq")
 
 	createTopics(t, brokers, rawTopic, processedTopic, dlqTopic)
+
+	log := logger.New(slog.LevelInfo)
 
 	processedProducer, err := appkafka.NewConfluentLinkUpdateProducer(
 		appkafka.LinkUpdateProducerConfig{
@@ -65,25 +46,36 @@ func TestAIAgent_ShouldReceiveAndProcessCorrectKafkaMessage_TC_1_1(t *testing.T)
 
 	processor := application.NewProcessor(
 		application.NewFilterService(
-			[]string{"spam", "promo"},
+			[]string{"spam"},
 			[]string{"bot-user"},
-			20,
+			1,
 		),
-		ai.NewStubSummarizer(logger.New(slog.LevelInfo)),
+		ai.NewStubSummarizer(log),
+		application.NewPriorityService(
+			[]string{"critical", "urgent", "security"},
+			[]string{"minor", "typo", "docs"},
+		),
 		500,
 	)
 
-	handler := &testAgentHandler{
-		processor: processor,
-		producer:  processedProducer,
-	}
+	groupingService := application.NewGroupingService(
+		20*time.Millisecond,
+		processedProducer,
+		log,
+	)
+
+	handler := application.NewHandler(
+		processor,
+		groupingService,
+		log,
+	)
 
 	consumer, err := appkafka.NewLinkUpdateConsumer(
 		appkafka.LinkUpdateConsumerConfig{
 			BootstrapServers:    brokers,
 			Topic:               rawTopic,
 			DLQTopic:            dlqTopic,
-			ConsumerGroup:       "ai-agent-test-group",
+			ConsumerGroup:       uniqueTopic("ai-agent-test-group"),
 			ClientID:            "ai-agent-test-consumer",
 			MaxRetries:          0,
 			SerializationFormat: appkafka.SerializationFormatJSON,
@@ -117,24 +109,24 @@ func TestAIAgent_ShouldReceiveAndProcessCorrectKafkaMessage_TC_1_1(t *testing.T)
 	update := api.LinkUpdate{
 		ID:          12345,
 		URL:         "https://github.com/test/repo",
-		TgChatIDs:   []int64{111, 222},
+		TgChatIDs:   []int64{111},
 		Type:        "issue",
-		Title:       "Test issue",
+		Title:       "Critical issue",
 		Username:    "normal-user",
 		CreatedAt:   time.Now().UTC(),
 		Preview:     "preview",
-		Description: "This is a valid update that should pass filtering and be published to processed topic",
+		Description: "critical bug fix in kafka processing",
 	}
 
 	require.NoError(t, rawProducer.Produce(ctx, update))
 
-	processed := consumeLinkUpdate(t, brokers, processedTopic)
+	processed := consumeLinkUpdate(t, brokers, processedTopic, 20*time.Second)
 
 	require.Equal(t, update.ID, processed.ID)
 	require.Equal(t, update.URL, processed.URL)
-	require.Equal(t, update.TgChatIDs, processed.TgChatIDs)
+	require.Equal(t, []int64{111}, processed.TgChatIDs)
 	require.Equal(t, update.Description, processed.Description)
-	require.Equal(t, application.DefaultPriority, processed.Priority)
+	require.Equal(t, string(application.PriorityHigh), processed.Priority)
 
 	cancel()
 
@@ -146,7 +138,7 @@ func TestAIAgent_ShouldReceiveAndProcessCorrectKafkaMessage_TC_1_1(t *testing.T)
 	}
 }
 
-func TestAIAgent_ShouldHandleInvalidKafkaMessageWithoutCrash_TC_1_2(t *testing.T) {
+func TestAIAgent_ShouldNotPublishFilteredMessage_TC_3_2(t *testing.T) {
 	ctx := context.Background()
 
 	brokers := startKafka(t, ctx)
@@ -157,11 +149,13 @@ func TestAIAgent_ShouldHandleInvalidKafkaMessageWithoutCrash_TC_1_2(t *testing.T
 
 	createTopics(t, brokers, rawTopic, processedTopic, dlqTopic)
 
+	log := logger.New(slog.LevelInfo)
+
 	processedProducer, err := appkafka.NewConfluentLinkUpdateProducer(
 		appkafka.LinkUpdateProducerConfig{
 			BootstrapServers:    brokers,
 			Topic:               processedTopic,
-			ClientID:            "ai-agent-invalid-test-producer",
+			ClientID:            "ai-agent-filtered-test-producer",
 			SerializationFormat: appkafka.SerializationFormatJSON,
 		},
 	)
@@ -169,23 +163,38 @@ func TestAIAgent_ShouldHandleInvalidKafkaMessageWithoutCrash_TC_1_2(t *testing.T
 	defer processedProducer.Close()
 
 	processor := application.NewProcessor(
-		application.NewFilterService(nil, nil, 1),
-		ai.NewStubSummarizer(logger.New(slog.LevelInfo)),
+		application.NewFilterService(
+			[]string{"spam"},
+			nil,
+			1,
+		),
+		ai.NewStubSummarizer(log),
+		application.NewPriorityService(
+			[]string{"critical", "urgent", "security"},
+			[]string{"minor", "typo", "docs"},
+		),
 		500,
 	)
 
-	handler := &testAgentHandler{
-		processor: processor,
-		producer:  processedProducer,
-	}
+	groupingService := application.NewGroupingService(
+		20*time.Millisecond,
+		processedProducer,
+		log,
+	)
+
+	handler := application.NewHandler(
+		processor,
+		groupingService,
+		log,
+	)
 
 	consumer, err := appkafka.NewLinkUpdateConsumer(
 		appkafka.LinkUpdateConsumerConfig{
 			BootstrapServers:    brokers,
 			Topic:               rawTopic,
 			DLQTopic:            dlqTopic,
-			ConsumerGroup:       "ai-agent-invalid-test-group",
-			ClientID:            "ai-agent-invalid-test-consumer",
+			ConsumerGroup:       uniqueTopic("ai-agent-filtered-test-group"),
+			ClientID:            "ai-agent-filtered-test-consumer",
 			MaxRetries:          0,
 			SerializationFormat: appkafka.SerializationFormatJSON,
 		},
@@ -204,14 +213,32 @@ func TestAIAgent_ShouldHandleInvalidKafkaMessageWithoutCrash_TC_1_2(t *testing.T
 		errCh <- consumer.Start(consumerCtx)
 	}()
 
-	produceRawBytes(t, brokers, rawTopic, []byte(`{"id": "invalid-id", "tgChatIds": "not-array"}`))
+	rawProducer, err := appkafka.NewConfluentLinkUpdateProducer(
+		appkafka.LinkUpdateProducerConfig{
+			BootstrapServers:    brokers,
+			Topic:               rawTopic,
+			ClientID:            "scrapper-filtered-test-producer",
+			SerializationFormat: appkafka.SerializationFormatJSON,
+		},
+	)
+	require.NoError(t, err)
+	defer rawProducer.Close()
 
-	dlqMessage := consumeDLQMessage(t, brokers, dlqTopic)
+	update := api.LinkUpdate{
+		ID:          54321,
+		URL:         "https://github.com/test/repo",
+		TgChatIDs:   []int64{111},
+		Type:        "issue",
+		Title:       "Spam issue",
+		Username:    "normal-user",
+		CreatedAt:   time.Now().UTC(),
+		Preview:     "preview",
+		Description: "spam message should be filtered",
+	}
 
-	require.Equal(t, rawTopic, dlqMessage.OriginalTopic)
-	require.Equal(t, appkafka.SerializationFormatJSON, appkafka.SerializationFormatJSON)
-	require.Equal(t, "deserialization_error", dlqMessage.Reason)
-	require.NotEmpty(t, dlqMessage.Error)
+	require.NoError(t, rawProducer.Produce(ctx, update))
+
+	requireNoMessage(t, brokers, processedTopic, 2*time.Second)
 
 	cancel()
 
@@ -219,7 +246,7 @@ func TestAIAgent_ShouldHandleInvalidKafkaMessageWithoutCrash_TC_1_2(t *testing.T
 	case err := <-errCh:
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(3 * time.Second):
-		t.Fatal("consumer did not stop after invalid message")
+		t.Fatal("consumer did not stop")
 	}
 }
 
@@ -286,7 +313,12 @@ func createTopics(t *testing.T, brokers string, topics ...string) {
 	}
 }
 
-func consumeLinkUpdate(t *testing.T, brokers string, topic string) api.LinkUpdate {
+func consumeLinkUpdate(
+	t *testing.T,
+	brokers string,
+	topic string,
+	timeout time.Duration,
+) api.LinkUpdate {
 	t.Helper()
 
 	consumer, err := confluent.NewConsumer(&confluent.ConfigMap{
@@ -302,7 +334,7 @@ func consumeLinkUpdate(t *testing.T, brokers string, topic string) api.LinkUpdat
 
 	require.NoError(t, consumer.SubscribeTopics([]string{topic}, nil))
 
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(timeout)
 
 	for {
 		select {
@@ -327,12 +359,17 @@ func consumeLinkUpdate(t *testing.T, brokers string, topic string) api.LinkUpdat
 	}
 }
 
-func consumeDLQMessage(t *testing.T, brokers string, topic string) appkafka.DeadLetterMessage {
+func requireNoMessage(
+	t *testing.T,
+	brokers string,
+	topic string,
+	timeout time.Duration,
+) {
 	t.Helper()
 
 	consumer, err := confluent.NewConsumer(&confluent.ConfigMap{
 		"bootstrap.servers":  brokers,
-		"group.id":           uniqueTopic("dlq-reader"),
+		"group.id":           uniqueTopic("empty-reader"),
 		"auto.offset.reset":  "earliest",
 		"enable.auto.commit": false,
 	})
@@ -343,58 +380,21 @@ func consumeDLQMessage(t *testing.T, brokers string, topic string) appkafka.Dead
 
 	require.NoError(t, consumer.SubscribeTopics([]string{topic}, nil))
 
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(timeout)
 
 	for {
 		select {
 		case <-deadline:
-			t.Fatal("DLQ message was not received")
+			return
 		default:
 			event := consumer.Poll(100)
 			if event == nil {
 				continue
 			}
 
-			message, ok := event.(*confluent.Message)
-			if !ok {
-				continue
+			if _, ok := event.(*confluent.Message); ok {
+				t.Fatal("unexpected message in processed topic")
 			}
-
-			var dlqMessage appkafka.DeadLetterMessage
-			require.NoError(t, json.Unmarshal(message.Value, &dlqMessage))
-
-			return dlqMessage
 		}
-	}
-}
-
-func produceRawBytes(t *testing.T, brokers string, topic string, payload []byte) {
-	t.Helper()
-
-	producer, err := confluent.NewProducer(&confluent.ConfigMap{
-		"bootstrap.servers": brokers,
-		"acks":              "all",
-	})
-	require.NoError(t, err)
-	defer producer.Close()
-
-	deliveryCh := make(chan confluent.Event, 1)
-
-	err = producer.Produce(&confluent.Message{
-		TopicPartition: confluent.TopicPartition{
-			Topic:     &topic,
-			Partition: confluent.PartitionAny,
-		},
-		Value: payload,
-	}, deliveryCh)
-	require.NoError(t, err)
-
-	select {
-	case event := <-deliveryCh:
-		message, ok := event.(*confluent.Message)
-		require.True(t, ok)
-		require.NoError(t, message.TopicPartition.Error)
-	case <-time.After(10 * time.Second):
-		t.Fatal("raw invalid kafka message was not delivered")
 	}
 }

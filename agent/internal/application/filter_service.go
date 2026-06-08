@@ -18,14 +18,6 @@ func NewFilterService(
 	excludedAuthors []string,
 	minLength int,
 ) *FilterService {
-	normalizedStopWords := make([]string, 0, len(stopWords))
-	for _, word := range stopWords {
-		word = strings.ToLower(strings.TrimSpace(word))
-		if word != "" {
-			normalizedStopWords = append(normalizedStopWords, word)
-		}
-	}
-
 	authors := make(map[string]struct{}, len(excludedAuthors))
 	for _, author := range excludedAuthors {
 		author = strings.ToLower(strings.TrimSpace(author))
@@ -35,7 +27,7 @@ func NewFilterService(
 	}
 
 	return &FilterService{
-		stopWords:       normalizedStopWords,
+		stopWords:       normalizeKeywords(stopWords),
 		excludedAuthors: authors,
 		minLength:       minLength,
 	}
@@ -53,10 +45,9 @@ func (s *FilterService) ShouldProcess(update api.LinkUpdate) bool {
 		return false
 	}
 
-	lowerDescription := strings.ToLower(description)
-
+	words := toWordSet(description)
 	for _, stopWord := range s.stopWords {
-		if strings.Contains(lowerDescription, stopWord) {
+		if _, ok := words[stopWord]; ok {
 			return false
 		}
 	}
