@@ -117,15 +117,15 @@ const (
 	defaultAccessType          = string(AccessTypeSQL)
 
 	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
-	defaultKafkaLinkUpdatesTopic = "link-updates"
-	defaultKafkaDLQTopic         = "link-updates-dlq"
+	defaultKafkaLinkUpdatesTopic = "link.processed-updates"
+	defaultKafkaDLQTopic         = "link.processed-updates-dlq"
 	defaultKafkaConsumerGroup    = "bot-link-updates"
 	defaultKafkaClientID         = "bot"
 	defaultKafkaMaxRetries       = 3
 	minKafkaMaxRetries           = 0
 
 	defaultSchemaRegistryURL        = "http://localhost:18085"
-	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
+	defaultKafkaLinkUpdatesSubject  = "link.processed-updates-value"
 	defaultKafkaSerializationFormat = "JSON"
 
 	defaultScrapperHTTPRetryMaxAttempts      uint = 3

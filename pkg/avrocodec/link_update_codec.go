@@ -28,7 +28,8 @@ const (
 	    {"name": "username", "type": "string", "doc": "Автор обновления"},
 	    {"name": "createdAt", "type": "string", "doc": "Время создания обновления в RFC3339Nano"},
 	    {"name": "preview", "type": "string", "doc": "Краткое описание"},
-	    {"name": "description", "type": "string", "doc": "Полное описание уведомления"}
+	    {"name": "description", "type": "string", "doc": "Полное описание уведомления"},
+		{"name": "priority", "type": ["null", "string"], "default": null, "doc": "Приоритет обновления"}
 	  ]
 	}`
 )
@@ -72,6 +73,7 @@ func (c *LinkUpdateCodec) Serialize(update api.LinkUpdate) ([]byte, error) {
 		"createdAt":   update.CreatedAt.UTC().Format(time.RFC3339Nano),
 		"preview":     update.Preview,
 		"description": update.Description,
+		"priority":    nullableString(update.Priority),
 	}
 
 	avroPayload, err := c.codec.BinaryFromNative(nil, native)
@@ -156,6 +158,8 @@ func (c *LinkUpdateCodec) Deserialize(payload []byte) (api.LinkUpdate, error) {
 		return api.LinkUpdate{}, err
 	}
 
+	priority, _ := getOptionalStringField(record, "priority")
+
 	return api.LinkUpdate{
 		ID:          id,
 		URL:         urlValue,
@@ -166,6 +170,7 @@ func (c *LinkUpdateCodec) Deserialize(payload []byte) (api.LinkUpdate, error) {
 		CreatedAt:   createdAt,
 		Preview:     preview,
 		Description: description,
+		Priority:    priority,
 	}, nil
 }
 
@@ -229,4 +234,30 @@ func getInt64SliceField(record map[string]any, field string) ([]int64, error) {
 	}
 
 	return result, nil
+}
+
+func nullableString(value string) any {
+	if value == "" {
+		return nil
+	}
+
+	return map[string]any{"string": value}
+}
+
+func getOptionalStringField(record map[string]any, field string) (string, error) {
+	value, ok := record[field]
+	if !ok || value == nil {
+		return "", nil
+	}
+
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	case map[string]any:
+		if s, ok := v["string"].(string); ok {
+			return s, nil
+		}
+	}
+
+	return "", fmt.Errorf("avro field %s is not optional string", field)
 }

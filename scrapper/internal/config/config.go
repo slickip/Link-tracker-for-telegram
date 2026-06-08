@@ -131,7 +131,7 @@ const (
 	defaultNotificationTransport = string(NotificationTransportHTTP)
 
 	defaultKafkaBootstrapServers = "localhost:19092,localhost:19093,localhost:19094"
-	defaultKafkaLinkUpdatesTopic = "link-updates"
+	defaultKafkaLinkUpdatesTopic = "link.raw-updates"
 	defaultKafkaClientID         = "scrapper"
 
 	defaultOutboxEnabled         = true
@@ -139,7 +139,7 @@ const (
 	defaultOutboxBatchSize       = 100
 
 	defaultSchemaRegistryURL        = "http://localhost:18085"
-	defaultKafkaLinkUpdatesSubject  = "link-updates-value"
+	defaultKafkaLinkUpdatesSubject  = "link.raw-updates-value"
 	defaultKafkaSerializationFormat = "JSON"
 
 	defaultValkeyEnabled                = true
