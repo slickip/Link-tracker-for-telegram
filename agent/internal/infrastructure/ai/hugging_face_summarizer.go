@@ -4,23 +4,35 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
-	"unicode/utf8"
+
+	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+)
+
+const (
+	logInvalidThreshold = "invalid summarization threshold"
+	logFallbackToStub   = "fallback to stub summarization"
+
+	reasonRequestFailed = "request_failed"
+	reasonBadStatus     = "bad_status"
+	reasonDecodeFailed  = "decode_failed"
+	reasonEmptyResponse = "empty_response"
 )
 
 type HuggingFaceSummarizer struct {
 	client *http.Client
 	apiURL string
 	token  string
+	log    *logger.Slog
 }
 
 func NewHuggingFaceSummarizer(
 	apiURL string,
 	token string,
 	timeout time.Duration,
+	log *logger.Slog,
 ) *HuggingFaceSummarizer {
 	return &HuggingFaceSummarizer{
 		client: &http.Client{
@@ -28,6 +40,7 @@ func NewHuggingFaceSummarizer(
 		},
 		apiURL: strings.TrimSpace(apiURL),
 		token:  strings.TrimSpace(token),
+		log:    log,
 	}
 }
 
@@ -44,8 +57,16 @@ func (s *HuggingFaceSummarizer) Summarize(
 	text string,
 	threshold int,
 ) (string, error) {
+	if threshold <= 0 {
+		s.log.Error(
+			logInvalidThreshold,
+			"threshold", threshold,
+		)
+		return text, nil
+	}
+
 	if s.apiURL == "" {
-		return fallbackCut(text, threshold), nil
+		return cutWithEllipsis(text, threshold), nil
 	}
 
 	payload, err := json.Marshal(huggingFaceRequest{
@@ -72,37 +93,44 @@ func (s *HuggingFaceSummarizer) Summarize(
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fallbackCut(text, threshold), nil
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonRequestFailed,
+			"error", err,
+		)
+		return cutWithEllipsis(text, threshold), nil
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fallbackCut(text, threshold), nil
+	if resp.StatusCode < http.StatusOK ||
+		resp.StatusCode >= http.StatusMultipleChoices {
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonBadStatus,
+			"status_code", resp.StatusCode,
+		)
+		return cutWithEllipsis(text, threshold), nil
 	}
 
 	var response []huggingFaceResponseItem
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return fallbackCut(text, threshold), nil
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonDecodeFailed,
+			"error", err,
+		)
+		return cutWithEllipsis(text, threshold), nil
 	}
 
 	if len(response) == 0 || strings.TrimSpace(response[0].SummaryText) == "" {
-		return fallbackCut(text, threshold), nil
+		s.log.Error(
+			logFallbackToStub,
+			"reason", reasonEmptyResponse,
+		)
+		return cutWithEllipsis(text, threshold), nil
 	}
 
 	return strings.TrimSpace(response[0].SummaryText), nil
-}
-
-func fallbackCut(text string, threshold int) string {
-	if threshold <= 0 {
-		return "..."
-	}
-
-	if utf8.RuneCountInString(text) <= threshold {
-		return text
-	}
-
-	runes := []rune(text)
-	return fmt.Sprintf("%s...", string(runes[:threshold]))
 }

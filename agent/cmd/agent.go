@@ -38,10 +38,11 @@ func main() {
 			cfg.AI.APIURL,
 			cfg.AI.Token,
 			cfg.AI.Timeout,
+			log,
 		)
 		log.Info("AI summarizer enabled")
 	} else {
-		summarizer = infraai.NewStubSummarizer()
+		summarizer = infraai.NewStubSummarizer(log)
 		log.Info("stub summarizer enabled")
 	}
 
