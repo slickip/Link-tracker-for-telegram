@@ -74,8 +74,8 @@ func isWordSeparator(r rune) bool {
 }
 
 func isWordRune(r rune) bool {
-	return !(r >= 'a' && r <= 'z') &&
-		!(r >= 'а' && r <= 'я') &&
-		r != 'ё' &&
-		!(r >= '0' && r <= '9')
+	return r >= 'a' && r <= 'z' ||
+		r >= 'а' && r <= 'я' ||
+		r == 'ё' ||
+		r >= '0' && r <= '9'
 }
