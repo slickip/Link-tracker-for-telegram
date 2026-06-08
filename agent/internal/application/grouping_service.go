@@ -153,7 +153,7 @@ func buildNumberedDescription(updates []api.LinkUpdate) string {
 			builder.WriteString("\n\n")
 		}
 
-		builder.WriteString(fmt.Sprintf("%d. %s", i+1, update.Description))
+		_, _ = fmt.Fprintf(&builder, "%d. %s", i+1, update.Description)
 	}
 
 	return builder.String()
