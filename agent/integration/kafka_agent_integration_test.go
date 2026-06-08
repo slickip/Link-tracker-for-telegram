@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -222,6 +223,10 @@ func TestAIAgent_ShouldHandleInvalidKafkaMessageWithoutCrash_TC_1_2(t *testing.T
 
 func startKafka(t *testing.T, ctx context.Context) string {
 	t.Helper()
+
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("skipping integration test: RUN_INTEGRATION_TESTS is not true")
+	}
 
 	kafkaContainer, err := tckafka.Run(
 		ctx,
