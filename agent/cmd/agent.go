@@ -11,59 +11,9 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/application"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/config"
 	infraai "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/infrastructure/ai"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 )
-
-type Handler struct {
-	processor *application.Processor
-	producer  kafka.LinkUpdateProducer
-	log       *logger.Slog
-}
-
-func NewHandler(
-	processor *application.Processor,
-	producer kafka.LinkUpdateProducer,
-	log *logger.Slog,
-) *Handler {
-	return &Handler{
-		processor: processor,
-		producer:  producer,
-		log:       log,
-	}
-}
-
-func (h *Handler) HandleLinkUpdate(
-	ctx context.Context,
-	update api.LinkUpdate,
-) error {
-	processedUpdate, ok, err := h.processor.Process(ctx, update)
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		h.log.Info(
-			"link update filtered",
-			"id", update.ID,
-			"username", update.Username,
-		)
-		return nil
-	}
-
-	if err := h.producer.Produce(ctx, processedUpdate); err != nil {
-		return err
-	}
-
-	h.log.Info(
-		"link update processed",
-		"id", processedUpdate.ID,
-		"priority", processedUpdate.Priority,
-	)
-
-	return nil
-}
 
 func main() {
 	cfg := config.MustLoad()
@@ -117,7 +67,7 @@ func main() {
 	}
 	defer producer.Close()
 
-	handler := NewHandler(processor, producer, log)
+	handler := application.NewHandler(processor, producer, log)
 
 	consumer, err := kafka.NewLinkUpdateConsumer(
 		kafka.LinkUpdateConsumerConfig{

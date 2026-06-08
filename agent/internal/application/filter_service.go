@@ -53,29 +53,13 @@ func (s *FilterService) ShouldProcess(update api.LinkUpdate) bool {
 		return false
 	}
 
-	fields := strings.FieldsFunc(strings.ToLower(description), isWordSeparator)
-
-	words := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		words[field] = struct{}{}
-	}
+	lowerDescription := strings.ToLower(description)
 
 	for _, stopWord := range s.stopWords {
-		if _, ok := words[stopWord]; ok {
+		if strings.Contains(lowerDescription, stopWord) {
 			return false
 		}
 	}
 
 	return true
-}
-
-func isWordSeparator(r rune) bool {
-	return !isWordRune(r)
-}
-
-func isWordRune(r rune) bool {
-	return r >= 'a' && r <= 'z' ||
-		r >= 'а' && r <= 'я' ||
-		r == 'ё' ||
-		r >= '0' && r <= '9'
 }
