@@ -3,10 +3,19 @@ package dispatch
 import (
 	"context"
 	"strings"
+	"time"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
+	botmetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/metrics"
+)
+
+const (
+	defaultCommandName = "message"
+	unknownCommandKey  = "unknown"
+
+	commandDurationScope = "scrapper_sync_api"
 )
 
 type Dispatcher struct {
@@ -34,6 +43,17 @@ func NewDispatcher(
 }
 
 func (d *Dispatcher) Dispatch(ctx context.Context, chatID int64, text string) (string, error) {
+	commandName := resolveCommandName(text)
+	started := time.Now()
+
+	defer func() {
+		botmetrics.CommandDurationMs.
+			WithLabelValues(commandDurationScope, commandName).
+			Observe(float64(time.Since(started).Milliseconds()))
+	}()
+
+	botmetrics.CommandRequestsTotal.WithLabelValues(commandName).Inc()
+
 	session, active, err := d.repo.Get(ctx, chatID)
 	if err != nil {
 		return "Не удалось получить состояние. Попробуй позже", err
@@ -48,6 +68,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, chatID int64, text string) (s
 			if err := d.repo.Reset(ctx, chatID); err != nil {
 				return "Не удалось отменить операцию. Попробуй позже", err
 			}
+
 			return "Операция отменена", nil
 		}
 
@@ -55,7 +76,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, chatID int64, text string) (s
 
 		cmd, ok := d.commands[cmdName]
 		if !ok {
-			cmd = d.commands["unknown"]
+			cmd = d.commands[unknownCommandKey]
 		}
 
 		return cmd.Execute(ctx, chatID, text)
@@ -72,4 +93,12 @@ func (d *Dispatcher) Dispatch(ctx context.Context, chatID int64, text string) (s
 	}
 
 	return "Неизвестная команда. Используй /help", nil
+}
+
+func resolveCommandName(text string) string {
+	if !strings.HasPrefix(text, "/") {
+		return defaultCommandName
+	}
+
+	return strings.Split(text, " ")[0]
 }

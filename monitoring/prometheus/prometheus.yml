@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: bot
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - bot:8011
+        labels:
+          application: bot
+
+  - job_name: scrapper
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - scrapper:8012
+        labels:
+          application: scrapper

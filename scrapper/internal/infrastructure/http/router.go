@@ -2,8 +2,15 @@ package http
 
 import (
 	"net/http"
+	"time"
+
+	scrappermetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/metrics"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http/handlers"
+)
+
+const (
+	httpAPIScope = "http_api"
 )
 
 func NewRouter(
@@ -68,5 +75,21 @@ func NewRouter(
 		}
 	})
 
-	return mux
+	return metricsMiddleware(mux)
+}
+
+func metricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+
+		scrappermetrics.APIRequestsTotal.
+			WithLabelValues(r.URL.Path).
+			Inc()
+
+		next.ServeHTTP(w, r)
+
+		scrappermetrics.RequestDurationMs.
+			WithLabelValues(httpAPIScope, r.URL.Path).
+			Observe(float64(time.Since(started).Milliseconds()))
+	})
 }

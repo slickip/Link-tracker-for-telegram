@@ -1,0 +1,129 @@
+{
+  "uid": "link-tracker-business",
+  "title": "Link Tracker Business Metrics",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "timezone": "browser",
+  "tags": ["link-tracker", "business"],
+  "templating": {
+    "list": [
+      {
+        "name": "application",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(up, application)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Bot commands per second",
+      "description": "Rate of user commands processed by Bot.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (command) (rate(command_requests_total[1m]))",
+          "legendFormat": "{{command}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Sent notifications per second",
+      "description": "Rate of notifications sent by Bot.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(sent_notification_total[1m])",
+          "legendFormat": "notifications"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "bargauge",
+      "title": "Tracked links by source",
+      "description": "Current number of tracked links grouped by source.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "links_on_track_total",
+          "legendFormat": "{{tracked_source}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Scrape duration p50 / p95 / p99",
+      "description": "Scrape operation duration percentiles grouped by source.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, scope_type) (rate(request_duration_ms_total_bucket{scope=\"external_source\"}[5m])))",
+          "legendFormat": "p50 {{scope_type}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, scope_type) (rate(request_duration_ms_total_bucket{scope=\"external_source\"}[5m])))",
+          "legendFormat": "p95 {{scope_type}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, scope_type) (rate(request_duration_ms_total_bucket{scope=\"external_source\"}[5m])))",
+          "legendFormat": "p99 {{scope_type}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Bot command duration p50 / p95 / p99",
+      "description": "Bot command processing duration percentiles.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, scope_type) (rate(command_duration_ms_total_bucket[5m])))",
+          "legendFormat": "p50 {{scope_type}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, scope_type) (rate(command_duration_ms_total_bucket[5m])))",
+          "legendFormat": "p95 {{scope_type}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, scope_type) (rate(command_duration_ms_total_bucket[5m])))",
+          "legendFormat": "p99 {{scope_type}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Scrapper API requests per second",
+      "description": "Rate of Scrapper API requests grouped by source label.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (source) (rate(api_requests_total[1m]))",
+          "legendFormat": "{{source}}"
+        }
+      ]
+    }
+  ]
+}

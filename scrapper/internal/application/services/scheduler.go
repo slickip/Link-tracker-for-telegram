@@ -14,6 +14,7 @@ import (
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
+	scrappermetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/metrics"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/parsers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
 )
@@ -241,6 +242,15 @@ func (s *Scheduler) processLink(ctx context.Context, link domain.Link) error {
 	if err != nil {
 		return err
 	}
+
+	started := time.Now()
+	source := string(parsed.Source)
+
+	defer func() {
+		scrappermetrics.RequestDurationMs.
+			WithLabelValues("external_source", source).
+			Observe(float64(time.Since(started).Milliseconds()))
+	}()
 
 	updates, newUpdatedAt, err := s.fetchUpdates(ctx, link, parsed)
 	if err != nil {

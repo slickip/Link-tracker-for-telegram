@@ -17,6 +17,7 @@ import (
 	grpcserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/grpc"
 	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
+	botmetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/metrics"
 	dbpkgorm "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/orm/database"
 	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/orm/repositories"
 	dbpkgsql "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/sql/database"
@@ -25,6 +26,7 @@ import (
 	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+	commonmetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/metrics"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
@@ -34,6 +36,14 @@ func main() {
 		cfg = config.MustLoad()
 		log = logger.New(slog.LevelInfo)
 	)
+
+	botmetrics.Register()
+
+	metricsServer := commonmetrics.NewServer(":8011", slog.Default())
+	metricsServer.Start()
+	defer func() {
+		_ = metricsServer.Shutdown(context.Background())
+	}()
 
 	bot, err := adapters.NewBot(cfg.TelegramToken)
 	if err != nil {
