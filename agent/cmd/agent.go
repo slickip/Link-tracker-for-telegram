@@ -46,9 +46,15 @@ func main() {
 		log.Info("stub summarizer enabled")
 	}
 
+	priorityService := application.NewPriorityService(
+		cfg.Prioritization.HighKeywords,
+		cfg.Prioritization.LowKeywords,
+	)
+
 	processor := application.NewProcessor(
 		filterService,
 		summarizer,
+		priorityService,
 		cfg.Summarization.Threshold,
 	)
 
@@ -68,7 +74,17 @@ func main() {
 	}
 	defer producer.Close()
 
-	handler := application.NewHandler(processor, producer, log)
+	groupingService := application.NewGroupingService(
+		cfg.Grouping.Window,
+		producer,
+		log,
+	)
+
+	handler := application.NewHandler(
+		processor,
+		groupingService,
+		log,
+	)
 
 	consumer, err := kafka.NewLinkUpdateConsumer(
 		kafka.LinkUpdateConsumerConfig{
@@ -89,6 +105,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() {
+		groupingService.FlushAll(context.Background())
+
 		if err := consumer.Close(); err != nil {
 			log.Warn("failed to close kafka consumer", "error", err)
 		}
@@ -98,6 +116,7 @@ func main() {
 		"AI Agent started",
 		"raw_topic", cfg.Kafka.RawUpdatesTopic,
 		"processed_topic", cfg.Kafka.ProcessedTopic,
+		"group_window", cfg.Grouping.Window.String(),
 	)
 
 	if err := consumer.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
