@@ -11,10 +11,12 @@ import (
 )
 
 type Config struct {
-	Kafka         KafkaConfig
-	Filtering     FilteringConfig
-	Summarization SummarizationConfig
-	AI            AIConfig
+	Kafka          KafkaConfig
+	Filtering      FilteringConfig
+	Summarization  SummarizationConfig
+	Prioritization PrioritizationConfig
+	Grouping       GroupingConfig
+	AI             AIConfig
 }
 
 type KafkaConfig struct {
@@ -39,6 +41,15 @@ type FilteringConfig struct {
 
 type SummarizationConfig struct {
 	Threshold int
+}
+
+type PrioritizationConfig struct {
+	HighKeywords []string
+	LowKeywords  []string
+}
+
+type GroupingConfig struct {
+	Window time.Duration
 }
 
 type AIConfig struct {
@@ -67,9 +78,13 @@ const (
 	defaultMinLength       = 20
 	defaultThreshold       = 500
 
+	defaultHighKeywords = "critical,urgent,breaking,security"
+	defaultLowKeywords  = "minor,typo,chore,docs"
+	defaultGroupWindow  = 30 * time.Second
+
 	defaultAIEnabled = false
-	defaultAIURL     = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
-	defaultAIModel   = "facebook/bart-large-cnn"
+	defaultAIURL     = "https://api-inference.huggingface.co/models/sshleifer/distilbart-cnn-12-6"
+	defaultAIModel   = "sshleifer/distilbart-cnn-12-6"
 	defaultAITimeout = 20 * time.Second
 )
 
@@ -97,6 +112,13 @@ func MustLoad() *Config {
 		},
 		Summarization: SummarizationConfig{
 			Threshold: getEnvInt("AI_SUMMARIZATION_THRESHOLD", defaultThreshold),
+		},
+		Prioritization: PrioritizationConfig{
+			HighKeywords: getEnvStringSlice("AI_HIGH_KEYWORDS", defaultHighKeywords),
+			LowKeywords:  getEnvStringSlice("AI_LOW_KEYWORDS", defaultLowKeywords),
+		},
+		Grouping: GroupingConfig{
+			Window: getEnvDuration("AI_GROUP_WINDOW", defaultGroupWindow),
 		},
 		AI: AIConfig{
 			Enabled: getEnvBool("AI_SUMMARIZER_ENABLED", defaultAIEnabled),
