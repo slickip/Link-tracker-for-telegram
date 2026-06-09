@@ -1,6 +1,9 @@
 package application
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 type Priority string
 
@@ -69,8 +72,5 @@ func isWordSeparator(r rune) bool {
 }
 
 func isWordRune(r rune) bool {
-	return r >= 'a' && r <= 'z' ||
-		r >= 'а' && r <= 'я' ||
-		r == 'ё' ||
-		r >= '0' && r <= '9'
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
