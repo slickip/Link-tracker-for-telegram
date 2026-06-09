@@ -263,6 +263,7 @@ services:
     ports:
       - "8081:8081"
       - "8083:8083"
+      - "8012:8012"
 
   bot:
     build:
@@ -305,6 +306,7 @@ services:
     ports:
       - "8080:8080"
       - "8082:8082"
+      - "8011:8011"
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.6.1
@@ -440,6 +442,35 @@ services:
 
         echo "Valkey cluster created"
 
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: link-tracker-prometheus
+    restart: unless-stopped
+    depends_on:
+      - bot
+      - scrapper
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana-oss:11.1.0
+    container_name: link-tracker-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
 volumes:
   postgres_data:
   zookeeper_data:
@@ -450,3 +481,5 @@ volumes:
   valkey_node_1_data:
   valkey_node_2_data:
   valkey_node_3_data:
+  prometheus_data:
+  grafana_data:
