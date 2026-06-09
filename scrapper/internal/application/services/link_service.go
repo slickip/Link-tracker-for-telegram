@@ -3,12 +3,16 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"net/url"
+	"strings"
 	"time"
 
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
 	appcache "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/cache"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+
+	scrappermetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/metrics"
 )
 
 type LinkService struct {
@@ -52,6 +56,10 @@ func (s *LinkService) AddLink(ctx context.Context, chatID int64, link domain.Lin
 		return err
 	}
 
+	scrappermetrics.LinksOnTrackTotal.
+		WithLabelValues(trackedSource(link.URL)).
+		Inc()
+
 	s.invalidateListCache(ctx, chatID)
 
 	return nil
@@ -69,6 +77,10 @@ func (s *LinkService) RemoveLink(ctx context.Context, chatID int64, url string) 
 	if err := s.linkRepo.Remove(ctx, chatID, url); err != nil {
 		return err
 	}
+
+	scrappermetrics.LinksOnTrackTotal.
+		WithLabelValues(trackedSource(url)).
+		Dec()
 
 	s.invalidateListCache(ctx, chatID)
 
@@ -141,4 +153,23 @@ func (s *LinkService) invalidateListCache(ctx context.Context, chatID int64) {
 	}
 
 	_ = s.listCache.Delete(ctx, chatID)
+}
+
+func trackedSource(rawURL string) string {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil || parsedURL.Host == "" {
+		return "unknown"
+	}
+
+	host := strings.ToLower(parsedURL.Host)
+	host = strings.TrimPrefix(host, "www.")
+
+	switch {
+	case strings.Contains(host, "github.com"):
+		return "github"
+	case strings.Contains(host, "stackoverflow.com"):
+		return "stackoverflow"
+	default:
+		return host
+	}
 }
