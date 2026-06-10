@@ -1,0 +1,69 @@
+# Bot: количество пользовательских команд в секунду
+sum by (command) (
+  rate(command_requests_total[1m])
+)
+
+# Bot: p50 времени обработки команды
+histogram_quantile(
+  0.50,
+  sum by (le, scope, scope_type) (
+    rate(command_duration_ms_total_bucket[5m])
+  )
+)
+
+# Bot: p95 времени обработки команды
+histogram_quantile(
+  0.95,
+  sum by (le, scope, scope_type) (
+    rate(command_duration_ms_total_bucket[5m])
+  )
+)
+
+# Bot: p99 времени обработки команды
+histogram_quantile(
+  0.99,
+  sum by (le, scope, scope_type) (
+    rate(command_duration_ms_total_bucket[5m])
+  )
+)
+
+# Bot: количество отправленных нотификаций в секунду
+rate(sent_notification_total[1m])
+
+# Scrapper: количество API-запросов в секунду
+sum by (source) (
+  rate(api_requests_total[1m])
+)
+
+# Scrapper: количество активных ссылок по источникам
+links_on_track_total
+
+# Scrapper: p50 scrape duration
+histogram_quantile(
+  0.50,
+  sum by (le, scope_type) (
+    rate(request_duration_ms_total_bucket{scope="external_source"}[5m])
+  )
+)
+
+# Scrapper: p95 scrape duration
+histogram_quantile(
+  0.95,
+  sum by (le, scope_type) (
+    rate(request_duration_ms_total_bucket{scope="external_source"}[5m])
+  )
+)
+
+# Scrapper: p99 scrape duration
+histogram_quantile(
+  0.99,
+  sum by (le, scope_type) (
+    rate(request_duration_ms_total_bucket{scope="external_source"}[5m])
+  )
+)
+
+# RED: memory
+process_resident_memory_bytes{application="$application"}
+
+# RED: service up
+up{application="$application"}
