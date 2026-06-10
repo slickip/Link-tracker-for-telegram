@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
-	appcache "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/cache"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+	"github.com/slickip/link-tracker/pkg"
+	appcache "github.com/slickip/link-tracker/scrapper/internal/application/cache"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
+	"github.com/slickip/link-tracker/scrapper/internal/repositories"
 
-	scrappermetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/metrics"
+	scrappermetrics "github.com/slickip/link-tracker/scrapper/internal/infrastructure/metrics"
 )
 
 type LinkService struct {

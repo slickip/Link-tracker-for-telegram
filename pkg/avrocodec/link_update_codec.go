@@ -8,7 +8,7 @@ import (
 
 	"github.com/linkedin/goavro/v2"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
+	"github.com/slickip/link-tracker/pkg/api"
 )
 
 const (

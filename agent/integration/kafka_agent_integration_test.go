@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	tckafka "github.com/testcontainers/testcontainers-go/modules/kafka"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/application"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/infrastructure/ai"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	appkafka "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/agent/internal/application"
+	"github.com/slickip/link-tracker/agent/internal/infrastructure/ai"
+	"github.com/slickip/link-tracker/pkg/api"
+	appkafka "github.com/slickip/link-tracker/pkg/kafka"
+	"github.com/slickip/link-tracker/pkg/logger"
 )
 
 func TestAIAgent_ShouldPublishProcessedMessage_TC_3_1(t *testing.T) {

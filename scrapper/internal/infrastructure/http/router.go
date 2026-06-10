@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	scrappermetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/metrics"
+	scrappermetrics "github.com/slickip/link-tracker/scrapper/internal/infrastructure/metrics"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http/handlers"
+	"github.com/slickip/link-tracker/scrapper/internal/infrastructure/http/handlers"
 )
 
 const (

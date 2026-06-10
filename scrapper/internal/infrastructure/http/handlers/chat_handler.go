@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
+	"github.com/slickip/link-tracker/scrapper/internal/application/services"
 )
 
 const (

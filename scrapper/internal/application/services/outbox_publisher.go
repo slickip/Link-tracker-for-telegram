@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+	"github.com/slickip/link-tracker/pkg/kafka"
+	"github.com/slickip/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/scrapper/internal/repositories"
 )
 
 const (

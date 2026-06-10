@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
 )
 
 func TestLinkServiceListLinksCachesResult(t *testing.T) {

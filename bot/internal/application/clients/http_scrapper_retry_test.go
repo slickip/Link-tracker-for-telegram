@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
+	h "github.com/slickip/link-tracker/pkg/helpers"
 )
 
 const (

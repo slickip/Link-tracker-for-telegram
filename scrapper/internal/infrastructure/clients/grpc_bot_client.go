@@ -6,8 +6,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	botpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/bot"
+	"github.com/slickip/link-tracker/pkg/api"
+	botpb "github.com/slickip/link-tracker/pkg/api/bot"
 )
 
 type GRPCBotClient struct {

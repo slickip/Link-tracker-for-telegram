@@ -3,8 +3,8 @@ package commands
 import (
 	"context"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
+	"github.com/slickip/link-tracker/bot/internal/application/clients"
+	"github.com/slickip/link-tracker/bot/internal/domain"
 )
 
 type StartCommand struct {

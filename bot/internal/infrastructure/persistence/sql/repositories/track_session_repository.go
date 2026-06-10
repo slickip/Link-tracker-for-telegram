@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	repo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
+	"github.com/slickip/link-tracker/bot/internal/domain"
+	repo "github.com/slickip/link-tracker/bot/internal/domain/repositories"
 )
 
 type SQLTrackSessionRepository struct {

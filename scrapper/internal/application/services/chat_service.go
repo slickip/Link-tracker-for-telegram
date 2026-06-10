@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 
-	appcache "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/cache"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+	appcache "github.com/slickip/link-tracker/scrapper/internal/application/cache"
+	"github.com/slickip/link-tracker/scrapper/internal/repositories"
 )
 
 type ChatService struct {

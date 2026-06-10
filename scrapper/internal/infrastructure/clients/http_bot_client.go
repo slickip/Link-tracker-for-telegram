@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
+	"github.com/slickip/link-tracker/pkg/api"
+	h "github.com/slickip/link-tracker/pkg/helpers"
 )
 
 type BotClient interface {

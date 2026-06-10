@@ -3,7 +3,7 @@ package http
 import (
 	"net/http"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
+	"github.com/slickip/link-tracker/bot/internal/infrastructure/http/handlers"
 )
 
 func NewBotRouter(

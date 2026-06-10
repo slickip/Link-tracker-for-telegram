@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	repo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+	repo "github.com/slickip/link-tracker/scrapper/internal/repositories"
 )
 
 var ErrChatNotFound = errors.New("chat not found")

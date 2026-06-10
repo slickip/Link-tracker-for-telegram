@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
-	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/http/handlers"
+	"github.com/slickip/link-tracker/pkg"
+	"github.com/slickip/link-tracker/scrapper/internal/application/services"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
+	httpserver "github.com/slickip/link-tracker/scrapper/internal/infrastructure/http"
+	"github.com/slickip/link-tracker/scrapper/internal/infrastructure/http/handlers"
 )
 
 type fakeChatRepository struct {
@@ -388,7 +388,7 @@ func TestScrapper_AddLinkToNonExistingChat(t *testing.T) {
 
 	body := map[string]any{
 		"url":  "https://github.com/golang/go",
-		"tags":   []string{"test"},
+		"tags": []string{"test"},
 	}
 	data, err := json.Marshal(body)
 	if err != nil {

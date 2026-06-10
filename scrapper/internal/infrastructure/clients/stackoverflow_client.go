@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	h "github.com/slickip/link-tracker/pkg/helpers"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
 	"github.com/sony/gobreaker/v2"
-	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
 )
 
 const (

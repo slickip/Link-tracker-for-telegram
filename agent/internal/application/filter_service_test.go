@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
+	"github.com/slickip/link-tracker/pkg/api"
 )
 
 func TestFilterService_ShouldFilterByStopWord_TC_2_1(t *testing.T) {

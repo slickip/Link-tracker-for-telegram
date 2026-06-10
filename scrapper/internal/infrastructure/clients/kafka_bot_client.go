@@ -3,8 +3,8 @@ package clients
 import (
 	"context"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
+	"github.com/slickip/link-tracker/pkg/api"
+	"github.com/slickip/link-tracker/pkg/kafka"
 )
 
 type KafkaBotClient struct {

@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
-	ormrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/orm/repositories"
-	sqlrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/sql/repositories"
-	domrepo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+	"github.com/slickip/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
+	ormrepo "github.com/slickip/link-tracker/scrapper/internal/infrastructure/persistence/orm/repositories"
+	sqlrepo "github.com/slickip/link-tracker/scrapper/internal/infrastructure/persistence/sql/repositories"
+	domrepo "github.com/slickip/link-tracker/scrapper/internal/repositories"
 )
 
 func TestMigrations_ApplySuccessfully(t *testing.T) {

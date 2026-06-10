@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
+	"github.com/slickip/link-tracker/pkg"
+	"github.com/slickip/link-tracker/scrapper/internal/application/services"
 )
 
 type CreateTagRequest struct {

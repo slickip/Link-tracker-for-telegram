@@ -3,9 +3,9 @@ package repositories
 import (
 	"context"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	repo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/persistence/orm/models"
+	"github.com/slickip/link-tracker/bot/internal/domain"
+	repo "github.com/slickip/link-tracker/bot/internal/domain/repositories"
+	"github.com/slickip/link-tracker/bot/internal/infrastructure/persistence/orm/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

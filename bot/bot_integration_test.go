@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
-	httpserver "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/http/handlers"
+	"github.com/slickip/link-tracker/bot/internal/application/services"
+	httpserver "github.com/slickip/link-tracker/bot/internal/infrastructure/http"
+	"github.com/slickip/link-tracker/bot/internal/infrastructure/http/handlers"
 )
 
 type mockBot struct {

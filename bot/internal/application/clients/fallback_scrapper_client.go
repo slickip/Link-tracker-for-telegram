@@ -3,8 +3,8 @@ package clients
 import (
 	"context"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/bot/internal/domain"
+	"github.com/slickip/link-tracker/pkg/logger"
 )
 
 type FallbackScrapperClient struct {

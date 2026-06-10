@@ -10,13 +10,13 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
-	scrappermetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/metrics"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/parsers"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+	"github.com/slickip/link-tracker/pkg/api"
+	"github.com/slickip/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
+	"github.com/slickip/link-tracker/scrapper/internal/infrastructure/clients"
+	scrappermetrics "github.com/slickip/link-tracker/scrapper/internal/infrastructure/metrics"
+	"github.com/slickip/link-tracker/scrapper/internal/infrastructure/parsers"
+	"github.com/slickip/link-tracker/scrapper/internal/repositories"
 )
 
 const (

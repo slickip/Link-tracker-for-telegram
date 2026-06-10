@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
-	scrapperpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/scrapper"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/application/services"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
+	"github.com/slickip/link-tracker/pkg"
+	scrapperpb "github.com/slickip/link-tracker/pkg/api/scrapper"
+	"github.com/slickip/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/scrapper/internal/application/services"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

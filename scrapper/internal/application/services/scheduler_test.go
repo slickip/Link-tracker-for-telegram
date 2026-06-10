@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/clients"
+	"github.com/slickip/link-tracker/pkg/api"
+	"github.com/slickip/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
+	"github.com/slickip/link-tracker/scrapper/internal/infrastructure/clients"
 )
 
 type mockBotClient struct {

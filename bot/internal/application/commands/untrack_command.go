@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
+	"github.com/slickip/link-tracker/bot/internal/application/clients"
 )
 
 const (

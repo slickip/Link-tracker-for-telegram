@@ -6,8 +6,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	scrapperpb "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api/scrapper"
+	"github.com/slickip/link-tracker/bot/internal/domain"
+	scrapperpb "github.com/slickip/link-tracker/pkg/api/scrapper"
 )
 
 type GRPCScrapperClient struct {

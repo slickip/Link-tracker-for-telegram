@@ -1,4 +1,4 @@
-module gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker
+module github.com/slickip/link-tracker
 
 go 1.24.1
 

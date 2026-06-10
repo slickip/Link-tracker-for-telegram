@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/slickip/link-tracker/bot/internal/domain"
+	"github.com/slickip/link-tracker/pkg"
+	h "github.com/slickip/link-tracker/pkg/helpers"
 	"github.com/sony/gobreaker/v2"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg"
-	h "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/helpers"
 )
 
 const (

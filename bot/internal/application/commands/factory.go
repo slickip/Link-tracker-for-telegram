@@ -1,11 +1,11 @@
 package commands
 
 import (
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/clients"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/dispatch"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
+	"github.com/slickip/link-tracker/bot/internal/application/clients"
+	"github.com/slickip/link-tracker/bot/internal/application/dispatch"
+	"github.com/slickip/link-tracker/bot/internal/application/services"
+	"github.com/slickip/link-tracker/bot/internal/domain"
+	"github.com/slickip/link-tracker/bot/internal/domain/repositories"
 )
 
 func NewDefaultDispatcher(

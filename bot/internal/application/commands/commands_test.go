@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/commands"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/dispatch"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
+	"github.com/slickip/link-tracker/bot/internal/application/commands"
+	"github.com/slickip/link-tracker/bot/internal/application/dispatch"
+	"github.com/slickip/link-tracker/bot/internal/application/services"
+	"github.com/slickip/link-tracker/bot/internal/domain"
 )
 
 type fakeTrackSessionRepo struct {

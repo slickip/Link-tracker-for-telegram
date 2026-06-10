@@ -8,11 +8,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/application"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/config"
-	infraai "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/agent/internal/infrastructure/ai"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/kafka"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/logger"
+	"github.com/slickip/link-tracker/agent/internal/application"
+	"github.com/slickip/link-tracker/agent/internal/config"
+	infraai "github.com/slickip/link-tracker/agent/internal/infrastructure/ai"
+	"github.com/slickip/link-tracker/pkg/kafka"
+	"github.com/slickip/link-tracker/pkg/logger"
 )
 
 func main() {

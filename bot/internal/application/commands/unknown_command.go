@@ -3,7 +3,7 @@ package commands
 import (
 	"context"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
+	"github.com/slickip/link-tracker/bot/internal/domain"
 )
 
 type UnknownCommand struct{}

@@ -10,8 +10,8 @@ import (
 
 	confluent "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/api"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/pkg/avrocodec"
+	"github.com/slickip/link-tracker/pkg/api"
+	"github.com/slickip/link-tracker/pkg/avrocodec"
 )
 
 const (

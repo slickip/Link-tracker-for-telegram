@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/application/services"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/domain/repositories"
-	botmetrics "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/bot/internal/infrastructure/metrics"
+	"github.com/slickip/link-tracker/bot/internal/application/services"
+	"github.com/slickip/link-tracker/bot/internal/domain"
+	"github.com/slickip/link-tracker/bot/internal/domain/repositories"
+	botmetrics "github.com/slickip/link-tracker/bot/internal/infrastructure/metrics"
 )
 
 const (

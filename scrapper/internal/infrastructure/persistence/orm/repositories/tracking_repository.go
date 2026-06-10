@@ -7,9 +7,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/domain"
-	"gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/infrastructure/persistence/orm/models"
-	repo "gitlab.education.tbank.ru/backend-academy-go-2025/homeworks/link-tracker/scrapper/internal/repositories"
+	"github.com/slickip/link-tracker/scrapper/internal/domain"
+	"github.com/slickip/link-tracker/scrapper/internal/infrastructure/persistence/orm/models"
+	repo "github.com/slickip/link-tracker/scrapper/internal/repositories"
 )
 
 type GormTrackingRepository struct {
